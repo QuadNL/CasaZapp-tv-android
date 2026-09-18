@@ -44,7 +44,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import java.time.Instant
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import nl.casazapp.core.api.Channel
 import nl.casazapp.core.api.Programme
 import nl.casazapp.tv.R
@@ -64,12 +68,22 @@ private fun windowStart(): Instant {
  * channel; on a TV, left and right move through the hours.
  */
 @Composable
-fun LiveTimeline(session: Session, channels: List<Channel>, onPlay: (Int) -> Unit) {
+fun LiveTimeline(session: Session, channels: List<Channel>, focusIndex: Int? = null, onPlay: (Int) -> Unit) {
     val form = LocalForm.current
     val scope = rememberCoroutineScope()
     val from = remember { windowStart() }
     var grid by remember { mutableStateOf<Map<String, List<Programme>>?>(null) }
     val scroll = rememberScrollState()
+    val rows = rememberLazyListState(initialFirstVisibleItemIndex = ((focusIndex ?: 0) - 2).coerceAtLeast(0))
+    val focusRow = remember { FocusRequester() }
+    // In the player's guide, the channel you are watching has focus, as on a TV provider's guide.
+    LaunchedEffect(focusIndex) {
+        if (focusIndex == null) return@LaunchedEffect
+        repeat(10) {
+            if (runCatching { focusRow.requestFocus() }.isSuccess) return@LaunchedEffect
+            delay(50)
+        }
+    }
     val perMin: Dp = if (form.tv) 4.dp else 2.6.dp
     val labelWidth: Dp = if (form.compact) 56.dp else 220.dp
     val rowHeight: Dp = if (form.tv) 68.dp else 58.dp
@@ -104,7 +118,7 @@ fun LiveTimeline(session: Session, channels: List<Channel>, onPlay: (Int) -> Uni
                 }
             }
         }
-        LazyColumn {
+        LazyColumn(state = rows) {
             itemsIndexed(channels, key = { _, c -> c.id }) { index, c ->
                 TimelineRow(
                     session = session,
@@ -117,6 +131,7 @@ fun LiveTimeline(session: Session, channels: List<Channel>, onPlay: (Int) -> Uni
                     width = width,
                     x = ::x,
                     now = now,
+                    modifier = if (index == focusIndex) Modifier.focusRequester(focusRow) else Modifier,
                     onPlay = { onPlay(index) },
                     onScroll = { step -> scope.launch { scroll.animateScrollBy(step * slotPx) } },
                 )
@@ -145,10 +160,11 @@ private fun TimelineRow(
     now: Instant,
     onPlay: () -> Unit,
     onScroll: (Int) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val form = LocalForm.current
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .height(height)
             .onPreviewKeyEvent {

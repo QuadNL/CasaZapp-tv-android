@@ -2,49 +2,47 @@
 
 package nl.casazapp.tv.ui
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.pm.ActivityInfo
+import android.content.res.Configuration
+import android.media.AudioManager
 import android.view.KeyEvent as AndroidKeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalConfiguration
-import android.content.res.Configuration
-import android.content.pm.ActivityInfo
-import android.content.ContextWrapper
-import android.content.Context
-import android.app.Activity
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.clickable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -56,16 +54,24 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.nativeKeyCode
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -94,11 +100,11 @@ import nl.casazapp.tv.R
 private const val OSD_MS = 5_000L
 
 /**
- * The web player on a television: picture filling the screen, the OSD over it, and the guide
- * beside it. The picture plays straight from the provider; the server only hands out the URL.
+ * The web player. The picture plays straight from the provider; the server only hands out the URL.
  *
- * Keys: up/down zap, OK shows the OSD and its buttons, right (or the guide key) opens the guide,
- * back closes the guide, then the player.
+ * TV keys: up/down zap; OK shows the OSD and hides it again; with the OSD shown, down reaches its
+ * buttons. Right or the guide key opens the guide: the picture shrinks to the top left, the
+ * channel's information beside it and the timeline below. Back closes the guide, then the player.
  */
 @OptIn(UnstableApi::class)
 @Composable
@@ -122,14 +128,21 @@ fun PlayerScreen(
     var favorite by remember { mutableStateOf(channel.favorite) }
     var volume by remember { mutableFloatStateOf(1f) }
     var guideOpen by remember { mutableStateOf(false) }
-    val compact = LocalForm.current.compact
-    val tvLook = LocalForm.current.tv
+    val form = LocalForm.current
+    val compact = form.compact
+    val tvLook = form.tv
     val root = remember { FocusRequester() }
     val firstControl = remember { FocusRequester() }
+    // 0 = only the picture, 1 = guide fully in; animated both ways.
+    val guideShown by animateFloatAsState(if (guideOpen) 1f else 0f, tween(280), label = "guide")
 
     fun showOsd() {
         osd = true
         osdAt = System.currentTimeMillis()
+    }
+    fun hideOsd() {
+        osd = false
+        runCatching { root.requestFocus() }
     }
     fun zap(step: Int) {
         guideOpen = false
@@ -175,13 +188,22 @@ fun PlayerScreen(
 
     LaunchedEffect(osdAt) {
         delay(OSD_MS)
-        if (!guideOpen) {
-            osd = false
-            root.requestFocus()
+        if (!guideOpen) hideOsd()
+    }
+    LaunchedEffect(guideOpen) { if (!guideOpen) runCatching { root.requestFocus() } }
+    BackHandler { if (guideOpen) guideOpen = false else onBack() }
+
+    // On a TV the remote sets the volume; the bar only shows it (and mute) like the TV does.
+    val audio = remember(context) { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
+    var tvVolume by remember { mutableFloatStateOf(1f) }
+    LaunchedEffect(tvLook, osd) {
+        while (tvLook && osd) {
+            val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+            val muted = audio.isStreamMute(AudioManager.STREAM_MUSIC)
+            tvVolume = if (muted) 0f else audio.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / max
+            delay(400)
         }
     }
-    LaunchedEffect(guideOpen) { if (!guideOpen) root.requestFocus() }
-    BackHandler { if (guideOpen) guideOpen = false else onBack() }
 
     // Phones and tablets may turn the screen from the player; leaving it gives the choice back to the sensor.
     val activity = remember(context) { context.findActivity() }
@@ -198,9 +220,39 @@ fun PlayerScreen(
         showOsd()
     }
 
+    val osdPanel: @Composable (Modifier, Boolean) -> Unit = { modifier, overlay ->
+        Osd(
+            number = watching.index + 1,
+            channel = channel,
+            detail = detail,
+            guide = guide,
+            session = session,
+            favorite = favorite,
+            volume = if (tvLook) tvVolume else volume,
+            firstControl = firstControl,
+            overlay = overlay,
+            onGuide = { guideOpen = !guideOpen; showOsd() },
+            onFavorite = {
+                favorite = !favorite
+                val value = favorite
+                scope.launch { runCatching { session.api.setFavorite(channel.id, value) } }
+                showOsd()
+            },
+            onVolume = if (tvLook) null else { v: Float ->
+                volume = v
+                player.volume = v
+                showOsd()
+            },
+            onRotate = if (tvLook) null else ::rotate,
+            onLeave = { hideOsd() },
+            modifier = modifier,
+        )
+    }
+
     val stage: @Composable (Modifier) -> Unit = { size -> Box(
             size
-                .clickable(interactionSource = null, indication = null) { if (osd) osd = false else showOsd() }
+                .background(Color.Black)
+                .clickable(interactionSource = null, indication = null) { if (osd) hideOsd() else showOsd() }
                 .pointerInput(tvLook) {
                     if (tvLook) return@pointerInput
                     // Like the web: swipe up for the guide, down to send it away; zapping is on the arrows.
@@ -217,26 +269,31 @@ fun PlayerScreen(
                     if (event.type != KeyEventType.KeyDown || guideOpen) return@onPreviewKeyEvent false
                     when (event.key.nativeKeyCode) {
                         AndroidKeyEvent.KEYCODE_DPAD_UP, AndroidKeyEvent.KEYCODE_CHANNEL_UP -> zap(-1)
-                        AndroidKeyEvent.KEYCODE_DPAD_DOWN, AndroidKeyEvent.KEYCODE_CHANNEL_DOWN -> zap(1)
-                        AndroidKeyEvent.KEYCODE_GUIDE, AndroidKeyEvent.KEYCODE_MENU -> guideOpen = true
-                        AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> if (!osd) guideOpen = true else return@onPreviewKeyEvent false
-                        AndroidKeyEvent.KEYCODE_DPAD_CENTER, AndroidKeyEvent.KEYCODE_ENTER, AndroidKeyEvent.KEYCODE_INFO -> {
-                            if (osd) return@onPreviewKeyEvent false
+                        AndroidKeyEvent.KEYCODE_CHANNEL_DOWN -> zap(1)
+                        // With the OSD shown, down goes to its buttons instead of zapping.
+                        AndroidKeyEvent.KEYCODE_DPAD_DOWN -> if (osd) {
                             showOsd()
-                            scope.launch {
-                                delay(50)
-                                runCatching { firstControl.requestFocus() }
-                            }
+                            runCatching { firstControl.requestFocus() }
+                        } else {
+                            zap(1)
                         }
+                        AndroidKeyEvent.KEYCODE_GUIDE, AndroidKeyEvent.KEYCODE_MENU, AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> guideOpen = true
+                        AndroidKeyEvent.KEYCODE_DPAD_CENTER, AndroidKeyEvent.KEYCODE_ENTER, AndroidKeyEvent.KEYCODE_INFO ->
+                            if (osd) hideOsd() else showOsd()
                         else -> return@onPreviewKeyEvent false
                     }
                     true
                 },
         ) {
-            AndroidView(
-                factory = { ctx -> PlayerView(ctx).apply { useController = false; this.player = player } },
-                modifier = Modifier.fillMaxSize(),
-            )
+            // A phone held upright: the picture in the middle, the OSD right below it instead of at the screen's edge.
+            val below = compact && guideShown == 0f
+            Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+                AndroidView(
+                    factory = { ctx -> PlayerView(ctx).apply { useController = false; this.player = player } },
+                    modifier = if (below) Modifier.fillMaxWidth().aspectRatio(16f / 9f) else Modifier.fillMaxSize(),
+                )
+                if (below && osd) osdPanel(Modifier, false)
+            }
 
             if (failed) {
                 Text(
@@ -252,9 +309,8 @@ fun PlayerScreen(
                 )
             }
 
-            // With the guide beside a TV picture, the picture's own information would only get in the way.
-            if (osd && (!tvLook || !guideOpen)) {
-                // Top bar: back and channel name.
+            // With the guide open on a TV, the small picture's own information would only get in the way.
+            if (osd && !(tvLook && guideOpen)) {
                 Row(
                     Modifier
                         .align(Alignment.TopStart)
@@ -264,129 +320,131 @@ fun PlayerScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Box(Modifier.size(if (tvLook) 44.dp else 40.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.1f)).clickable(onClick = onBack), contentAlignment = Alignment.Center) {
-                        Icon(Icons.back, Color.White, if (tvLook) 24.dp else 20.dp)
+                    if (!tvLook) {
+                        Box(Modifier.size(40.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.1f)).clickable(onClick = onBack), contentAlignment = Alignment.Center) {
+                            Icon(Icons.back, Color.White, 20.dp)
+                        }
                     }
                     Text(channel.name, color = Color.White, fontSize = if (tvLook) 18.sp else 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
 
-                // Zap arrows, vertically centred on the right like the web player.
-                Column(
-                    Modifier.align(Alignment.CenterEnd).padding(end = if (tvLook) 28.dp else 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    listOf(Icons.up to -1, Icons.down to 1).forEach { (icon, step) ->
-                        Box(
-                            Modifier
-                                .size(if (tvLook) 48.dp else 40.dp)
-                                .clip(CircleShape)
-                                .clickable { zap(step) }
-                                .background(Color.Black.copy(alpha = 0.4f), CircleShape)
-                                .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape),
-                            contentAlignment = Alignment.Center,
-                        ) { Icon(icon, Color.White, if (tvLook) 24.dp else 20.dp) }
+                // Zap arrows for touch; a remote zaps with up and down.
+                if (!tvLook) {
+                    Column(
+                        Modifier.align(Alignment.CenterEnd).padding(end = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        listOf(Icons.up to -1, Icons.down to 1).forEach { (icon, step) ->
+                            Box(
+                                Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .clickable { zap(step) }
+                                    .background(Color.Black.copy(alpha = 0.4f), CircleShape)
+                                    .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape),
+                                contentAlignment = Alignment.Center,
+                            ) { Icon(icon, Color.White, 20.dp) }
+                        }
                     }
                 }
 
-                Osd(
-                    number = watching.index + 1,
-                    channel = channel,
-                    detail = detail,
-                    guide = guide,
-                    session = session,
-                    favorite = favorite,
-                    volume = volume,
-                    firstControl = firstControl,
-                    onGuide = { guideOpen = !guideOpen; showOsd() },
-                    onFavorite = {
-                        favorite = !favorite
-                        val value = favorite
-                        scope.launch { runCatching { session.api.setFavorite(channel.id, value) } }
-                        showOsd()
-                    },
-                    onVolume = {
-                        volume = it
-                        player.volume = it
-                        showOsd()
-                    },
-                    onRotate = if (tvLook) null else ::rotate,
-                    modifier = Modifier.align(Alignment.BottomStart),
-                )
+                if (!below) osdPanel(Modifier.align(Alignment.BottomStart), true)
             }
         } }
 
+    if (tvLook) {
+        // The TV guide: the picture shrinks to the top left, the channel beside it, the timeline below.
+        BoxWithConstraints(Modifier.fillMaxSize().background(Casa.bg)) {
+            val small = 0.3f
+            val scale = 1f - (1f - small) * guideShown
+            val pad = 32.dp * guideShown
+            val w = maxWidth * scale
+            val h = maxHeight * scale
+            if (guideShown > 0f) {
+                Column(
+                    Modifier
+                        .offset(x = w + pad * 2, y = pad)
+                        .width(maxWidth - w - pad * 3)
+                        .height(h)
+                        .alpha(guideShown),
+                    verticalArrangement = Arrangement.Center,
+                ) { ChannelInfo(watching.index + 1, channel, detail, guide, session) }
+                Box(
+                    Modifier
+                        .offset(x = pad, y = h + pad * 1.5f)
+                        .width(maxWidth - pad * 2)
+                        .height(maxHeight - h - pad * 2.5f)
+                        .alpha(guideShown),
+                ) {
+                    if (guideOpen || guideShown > 0.5f) {
+                        LiveTimeline(session, channels, focusIndex = watching.index) { index ->
+                            guideOpen = false
+                            if (index != watching.index) onZap(index)
+                        }
+                    }
+                }
+            }
+            stage(Modifier.offset(x = pad, y = pad).size(w, h).clip(RoundedCornerShape(12.dp * guideShown)))
+        }
+        return
+    }
+
     if (compact) {
-        // Like the web on a phone held upright: the picture fills the screen; the guide slides in below it.
-        Column(Modifier.fillMaxSize().background(Color.Black).systemBarsPadding()) {
-            stage(Modifier.fillMaxWidth().weight(1f))
-            if (guideOpen) {
-                GuidePanel(
-                    session = session,
-                    watching = watching,
-                    onPick = { index -> onZap(index) },
-                    onClose = { guideOpen = false },
-                    narrow = true,
-                    modifier = Modifier.fillMaxWidth().weight(1.7f),
-                )
+        // A phone held upright: the guide slides in below the picture.
+        BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black).systemBarsPadding()) {
+            val guideHeight = maxHeight * 0.63f * guideShown
+            val stageHeight = maxHeight - guideHeight
+            Column {
+                stage(Modifier.fillMaxWidth().height(stageHeight))
+                if (guideShown > 0f) {
+                    GuidePanel(
+                        session = session,
+                        watching = watching,
+                        onPick = { index -> onZap(index) },
+                        onClose = { guideOpen = false },
+                        narrow = true,
+                        modifier = Modifier.fillMaxWidth().height(guideHeight),
+                    )
+                }
             }
         }
         return
     }
 
-    Row(Modifier.fillMaxSize().background(Color.Black)) {
-        stage(Modifier.weight(1f).fillMaxHeight())
-        if (guideOpen) {
-            GuidePanel(
-                session = session,
-                watching = watching,
-                onPick = { index -> if (tvLook) guideOpen = false; onZap(index) },
-                onClose = if (tvLook) null else ({ guideOpen = false }),
-                modifier = if (tvLook) Modifier.fillMaxHeight().width(560.dp) else Modifier.fillMaxHeight().weight(0.75f).systemBarsPadding(),
-            )
+    // A phone on its side or a tablet: the guide slides in on the right.
+    BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
+        val guideWidth = maxWidth * 0.42f * guideShown
+        val stageWidth = maxWidth - guideWidth
+        Row {
+            stage(Modifier.width(stageWidth).fillMaxHeight())
+            if (guideShown > 0f) {
+                GuidePanel(
+                    session = session,
+                    watching = watching,
+                    onPick = { index -> onZap(index) },
+                    onClose = { guideOpen = false },
+                    modifier = Modifier.width(guideWidth).fillMaxHeight().systemBarsPadding(),
+                )
+            }
         }
     }
 }
 
-private tailrec fun Context.findActivity(): Activity? = when (this) {
+internal tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
     else -> null
 }
 
-/** The web player's on-screen display: controls, then the channel, then now and next. */
+/** Number, logo, category with LIVE, name, then now and next: the heart of the OSD and the TV guide. */
 @Composable
-private fun Osd(
-    number: Int,
-    channel: Channel,
-    detail: ChannelDetail?,
-    guide: NowNext?,
-    session: Session,
-    favorite: Boolean,
-    volume: Float,
-    firstControl: FocusRequester,
-    onGuide: () -> Unit,
-    onFavorite: () -> Unit,
-    onVolume: (Float) -> Unit,
-    onRotate: (() -> Unit)?,
-    modifier: Modifier,
-) {
+private fun ChannelInfo(number: Int, channel: Channel, detail: ChannelDetail?, guide: NowNext?, session: Session, trailing: @Composable () -> Unit = {}) {
     val tv = LocalForm.current.tv
-    Column(
-        modifier
-            .fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0x99000000), Color(0xE6000000))))
-            .then(if (tv) Modifier.padding(start = 48.dp, end = 48.dp, top = 80.dp, bottom = 36.dp) else Modifier.padding(start = 20.dp, end = 12.dp, top = 48.dp, bottom = 16.dp)),
-    ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-            VolumeControl(volume, onVolume)
-            onRotate?.let { OsdButton(Icons.rotate, Color.White, Modifier, it) }
-            OsdButton(Icons.guide, Casa.accent, Modifier.focusRequester(firstControl), onGuide)
-            OsdButton(if (favorite) Icons.starFilled else Icons.star, if (favorite) Casa.accent else Color.White, Modifier, onFavorite)
-        }
+    Column {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(if (tv) 18.dp else 12.dp)) {
             Text(number.toString(), color = Casa.accent, fontSize = if (tv) 40.sp else 26.sp, fontFamily = CasaFonts.mono)
             ChannelLogo(channel.name, session.logo(channel.logo), session.token, if (tv) 60.dp else 44.dp)
-            Column(Modifier.weight(1f, fill = false)) {
+            Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(detail?.categoryName ?: "", color = Color.White.copy(alpha = 0.7f), fontSize = if (tv) 15.sp else 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     Text(
@@ -399,14 +457,75 @@ private fun Osd(
                 }
                 Text(channel.name, color = Color.White, fontSize = if (tv) 34.sp else 20.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+            trailing()
         }
         Spacer(Modifier.height(if (tv) 16.dp else 10.dp))
         Column((if (tv) Modifier.width(720.dp) else Modifier.fillMaxWidth()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             GuideLine(stringResource(R.string.now), guide?.now, strong = true)
             guide?.now?.let { ProgressBar(progressOf(it), Modifier.padding(start = if (tv) 64.dp else 48.dp).fillMaxWidth()) }
             GuideLine(stringResource(R.string.next), guide?.next, strong = false)
-            if (tv) Text(stringResource(R.string.player_hint), color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
         }
+    }
+}
+
+/**
+ * The web player's on-screen display. Upright on a phone the buttons sit above the channel; wider,
+ * they sit at the end of the channel's row, level with its name, like the web on a desktop.
+ */
+@Composable
+private fun Osd(
+    number: Int,
+    channel: Channel,
+    detail: ChannelDetail?,
+    guide: NowNext?,
+    session: Session,
+    favorite: Boolean,
+    volume: Float,
+    firstControl: FocusRequester,
+    overlay: Boolean,
+    onGuide: () -> Unit,
+    onFavorite: () -> Unit,
+    onVolume: ((Float) -> Unit)?,
+    onRotate: (() -> Unit)?,
+    onLeave: () -> Unit,
+    modifier: Modifier,
+) {
+    val form = LocalForm.current
+    val tv = form.tv
+    val controls: @Composable () -> Unit = {
+        Row(
+            // Up or back from the buttons returns to the picture.
+            Modifier.onPreviewKeyEvent {
+                if (it.type == KeyEventType.KeyDown && (it.key == Key.DirectionUp || it.key == Key.Back)) {
+                    onLeave(); true
+                } else {
+                    false
+                }
+            },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            VolumeControl(volume, onVolume)
+            onRotate?.let { OsdButton(Icons.rotate, Color.White, Modifier, it) }
+            OsdButton(if (favorite) Icons.starFilled else Icons.star, if (favorite) Casa.accent else Color.White, Modifier.focusRequester(firstControl), onFavorite)
+            OsdButton(Icons.guide, Casa.accent, Modifier, onGuide)
+        }
+    }
+    val sideBySide = !form.compact
+    Column(
+        modifier
+            .fillMaxWidth()
+            .then(if (overlay) Modifier.background(Brush.verticalGradient(listOf(Color.Transparent, Color(0x99000000), Color(0xE6000000)))) else Modifier)
+            .then(
+                when {
+                    tv -> Modifier.padding(start = 48.dp, end = 48.dp, top = 80.dp, bottom = 36.dp)
+                    overlay -> Modifier.padding(start = 20.dp, end = 12.dp, top = 48.dp, bottom = 16.dp).systemBarsPadding()
+                    else -> Modifier.padding(start = 16.dp, end = 12.dp, top = 12.dp, bottom = 12.dp)
+                },
+            ),
+    ) {
+        if (!sideBySide) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { controls() }
+        ChannelInfo(number, channel, detail, guide, session, trailing = { if (sideBySide) controls() })
+        if (tv) Text(stringResource(R.string.player_hint), color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
     }
 }
 
@@ -420,20 +539,27 @@ private fun OsdButton(icon: ImageVector, tint: Color, modifier: Modifier, onClic
 }
 
 /**
- * Mute button with a volume slider, like the web player. Drag or tap the bar; on a TV, left and
- * right change it while it has focus.
+ * Volume like the web player: mute button and a bar. With [onChange] null (a TV) it only shows the
+ * TV's own volume and mute, which the remote controls.
  */
 @Composable
-private fun VolumeControl(volume: Float, onChange: (Float) -> Unit) {
+private fun VolumeControl(volume: Float, onChange: ((Float) -> Unit)?) {
     val tv = LocalForm.current.tv
     var before by remember { mutableFloatStateOf(1f) }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        OsdButton(if (volume == 0f) Icons.muted else Icons.volume, Color.White, Modifier) {
-            if (volume == 0f) {
-                onChange(before.takeIf { it > 0f } ?: 1f)
-            } else {
-                before = volume
-                onChange(0f)
+        val icon = if (volume == 0f) Icons.muted else Icons.volume
+        if (onChange == null) {
+            Box(Modifier.padding(2.dp).size(if (tv) 52.dp else 42.dp), contentAlignment = Alignment.Center) {
+                Icon(icon, Color.White, if (tv) 28.dp else 22.dp)
+            }
+        } else {
+            OsdButton(icon, Color.White, Modifier) {
+                if (volume == 0f) {
+                    onChange(before.takeIf { it > 0f } ?: 1f)
+                } else {
+                    before = volume
+                    onChange(0f)
+                }
             }
         }
         var focused by remember { mutableStateOf(false) }
@@ -443,22 +569,27 @@ private fun VolumeControl(volume: Float, onChange: (Float) -> Unit) {
                 .width(if (tv) 140.dp else 88.dp)
                 .height(28.dp)
                 .onSizeChanged { widthPx = it.width.toFloat().coerceAtLeast(1f) }
-                .onFocusChanged { focused = it.isFocused }
-                .onKeyEvent {
-                    if (it.type != KeyEventType.KeyDown) return@onKeyEvent false
-                    when (it.key) {
-                        Key.DirectionLeft -> { onChange((volume - 0.1f).coerceIn(0f, 1f)); true }
-                        Key.DirectionRight -> { onChange((volume + 0.1f).coerceIn(0f, 1f)); true }
-                        else -> false
-                    }
-                }
-                .focusable()
-                .pointerInput(Unit) {
-                    detectTapGestures { onChange((it.x / widthPx).coerceIn(0f, 1f)) }
-                }
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures { change, _ -> onChange((change.position.x / widthPx).coerceIn(0f, 1f)) }
-                },
+                .then(
+                    if (onChange == null) {
+                        Modifier
+                    } else {
+                        Modifier
+                            .onFocusChanged { focused = it.isFocused }
+                            .onKeyEvent {
+                                if (it.type != KeyEventType.KeyDown) return@onKeyEvent false
+                                when (it.key) {
+                                    Key.DirectionLeft -> { onChange((volume - 0.1f).coerceIn(0f, 1f)); true }
+                                    Key.DirectionRight -> { onChange((volume + 0.1f).coerceIn(0f, 1f)); true }
+                                    else -> false
+                                }
+                            }
+                            .focusable()
+                            .pointerInput(Unit) { detectTapGestures { onChange((it.x / widthPx).coerceIn(0f, 1f)) } }
+                            .pointerInput(Unit) {
+                                detectHorizontalDragGestures { change, _ -> onChange((change.position.x / widthPx).coerceIn(0f, 1f)) }
+                            }
+                    },
+                ),
             contentAlignment = Alignment.CenterStart,
         ) {
             Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(Color.White.copy(alpha = 0.25f)))
@@ -489,9 +620,9 @@ private fun GuideLine(label: String, programme: Programme?, strong: Boolean) {
 }
 
 /**
- * The web player's guide. Wide (TV, landscape): channels below each other with the programmes of
- * the selected one beside them. Narrow (phone upright): the channels; tap one for its programmes.
- * Picking the selected channel again switches to it.
+ * The web player's guide on phones and tablets. Wide: channels below each other with the
+ * programmes of the selected one beside them. Narrow (phone upright): the channels; tap one for its
+ * programmes. Picking the selected channel again switches to it.
  */
 @Composable
 private fun GuidePanel(
@@ -503,17 +634,14 @@ private fun GuidePanel(
     onClose: (() -> Unit)? = null,
 ) {
     val channels = watching.channels
-    val tv = LocalForm.current.tv
     // Narrow: null shows the channel list; a channel shows its programmes.
     var selected by remember { mutableStateOf<Int?>(if (narrow) null else watching.index) }
     val shown = selected ?: watching.index
     var programmes by remember { mutableStateOf<List<Programme>?>(null) }
     var nowNext by remember { mutableStateOf<Map<String, NowNext>>(emptyMap()) }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = (watching.index - 3).coerceAtLeast(0))
-    val current = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
-        runCatching { current.requestFocus() }
         nowNext = runCatching { session.api.nowNext(channels.map { it.id }) }.getOrDefault(emptyMap())
     }
     LaunchedEffect(shown) {
@@ -528,12 +656,11 @@ private fun GuidePanel(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .then(if (isPlaying) Modifier.focusRequester(current) else Modifier)
-                        .focusRing(RoundedCornerShape(0.dp), onFocus = { if (it && !narrow) selected = index }) {
+                        .focusRing(RoundedCornerShape(0.dp)) {
                             if (shown == index && (!narrow || selected != null)) onPick(index) else selected = index
                         }
                         .background(if (index == shown && !narrow) Casa.raised else Color.Transparent)
-                        .padding(horizontal = 12.dp, vertical = if (tv) 8.dp else 7.dp),
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
@@ -592,7 +719,7 @@ private fun GuidePanel(
             Text(
                 if (narrow && selected != null) channels[shown].name else stringResource(R.string.guide),
                 color = Casa.text,
-                fontSize = if (tv) 18.sp else 15.sp,
+                fontSize = 15.sp,
                 fontFamily = CasaFonts.display,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
@@ -616,7 +743,7 @@ private fun GuidePanel(
             if (selected == null) channelList(Modifier.fillMaxSize()) else programmeList(Modifier.fillMaxSize())
         } else {
             Row(Modifier.fillMaxSize()) {
-                channelList((if (tv) Modifier.width(250.dp) else Modifier.weight(1f)).fillMaxHeight())
+                channelList(Modifier.weight(1f).fillMaxHeight())
                 programmeList(Modifier.weight(1.25f).fillMaxHeight().border(1.dp, Casa.line))
             }
         }

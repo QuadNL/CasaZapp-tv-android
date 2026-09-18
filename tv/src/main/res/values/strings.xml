@@ -77,4 +77,7 @@
     <string name="update_check">Controleren op updates</string>
     <string name="update_found">Er is een nieuwe versie; zie de melding bovenaan.</string>
     <string name="update_none">Je hebt de nieuwste versie.</string>
+    <string name="exit_title">CasaZapp TV sluiten?</string>
+    <string name="exit_stay">Annuleren</string>
+    <string name="exit_close">Sluiten</string>
 </resources>

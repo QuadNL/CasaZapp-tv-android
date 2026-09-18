@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -60,15 +61,18 @@ fun WelcomeScreen(onChoose: (SourceMode) -> Unit) {
     ) {
         Text("CasaZapp TV", color = Casa.accent, fontSize = 34.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.Bold)
         Text(stringResource(R.string.welcome_title), color = Casa.text, fontSize = 22.sp)
-        Choice(stringResource(R.string.mode_local), stringResource(R.string.mode_local_hint)) { onChoose(SourceMode.LOCAL) }
+        // A remote needs something focused to start from.
+        val first = remember { androidx.compose.ui.focus.FocusRequester() }
+        androidx.compose.runtime.LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
+        Choice(stringResource(R.string.mode_local), stringResource(R.string.mode_local_hint), Modifier.focusRequester(first)) { onChoose(SourceMode.LOCAL) }
         Choice(stringResource(R.string.mode_server), stringResource(R.string.mode_server_hint)) { onChoose(SourceMode.SERVER) }
     }
 }
 
 @Composable
-private fun Choice(title: String, hint: String, onClick: () -> Unit) {
+private fun Choice(title: String, hint: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Column(
-        Modifier
+        modifier
             .widthIn(max = 560.dp)
             .fillMaxWidth()
             .focusRing(RoundedCornerShape(16.dp), onClick = onClick)

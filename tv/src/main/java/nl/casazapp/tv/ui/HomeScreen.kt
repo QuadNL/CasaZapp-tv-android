@@ -136,7 +136,8 @@ fun HomeScreen(session: Session, lastChannelId: Int?, onWatch: (Watching) -> Uni
             info()
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(32.dp), verticalAlignment = Alignment.CenterVertically) {
-                hero(Modifier.width(420.dp))
+                // A phone on its side: a small tile, the information beside it.
+                hero(Modifier.width(if (LocalForm.current.phone) 200.dp else 420.dp))
                 info()
             }
         }

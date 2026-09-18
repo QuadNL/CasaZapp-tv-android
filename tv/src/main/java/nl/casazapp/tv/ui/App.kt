@@ -34,6 +34,9 @@ import nl.casazapp.core.api.CasaZappApi
 import nl.casazapp.core.api.Channel
 import nl.casazapp.core.store.ConnectionStore
 import nl.casazapp.core.store.UiMode
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.focus.focusRequester
 import nl.casazapp.tv.update.Updater
 import androidx.compose.runtime.LaunchedEffect
 import nl.casazapp.core.store.SourceMode
@@ -155,6 +158,33 @@ fun App(store: ConnectionStore) {
                 NavRail(route, iconsOnly = form.phone) { route = it }
                 val pad = if (form.tv) Modifier.padding(horizontal = 48.dp, vertical = 36.dp) else if (form.phone) Modifier.padding(16.dp) else Modifier.padding(24.dp)
                 Box(Modifier.weight(1f).fillMaxHeight().systemBarsPadding().then(pad)) { screen() }
+            }
+        }
+
+        // Back goes to Home first; on Home it asks before closing the app.
+        var askExit by remember { mutableStateOf(false) }
+        BackHandler { if (route != Route.Home) route = Route.Home else askExit = true }
+        if (askExit) ExitPrompt(onCancel = { askExit = false }, onExit = { context.findActivity()?.finish() })
+    }
+}
+
+@Composable
+private fun ExitPrompt(onCancel: () -> Unit, onExit: () -> Unit) {
+    val stay = remember { androidx.compose.ui.focus.FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { stay.requestFocus() } }
+    BackHandler(onBack = onCancel)
+    Box(
+        Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.6f)).clickable(onClick = onCancel),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier.padding(24.dp).background(Casa.surface, androidx.compose.foundation.shape.RoundedCornerShape(16.dp)).padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(stringResource(R.string.exit_title), color = Casa.text, fontSize = 20.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                CasaButton(stringResource(R.string.exit_stay), Modifier.focusRequester(stay), primary = false, onClick = onCancel)
+                CasaButton(stringResource(R.string.exit_close), onClick = onExit)
             }
         }
     }

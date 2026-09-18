@@ -75,10 +75,12 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun Localized(tag: String?, content: @Composable () -> Unit) {
     val base = LocalContext.current
+    // Keyed on the live configuration: turning the device must reach the layout, language or not.
+    val outer = LocalConfiguration.current
     // Always the same composition shape, so switching language keeps the screen you are on.
-    val localized = remember(tag, base) {
+    val localized = remember(tag, base, outer) {
         if (tag == null) return@remember base
-        val config = Configuration(base.resources.configuration).apply { setLocale(Locale.forLanguageTag(tag)) }
+        val config = Configuration(outer).apply { setLocale(Locale.forLanguageTag(tag)) }
         val resources = base.createConfigurationContext(config).resources
         // A wrapper keeps the activity underneath, which the player and back handling need.
         object : ContextWrapper(base) {
@@ -87,7 +89,7 @@ private fun Localized(tag: String?, content: @Composable () -> Unit) {
     }
     CompositionLocalProvider(
         LocalContext provides localized,
-        LocalConfiguration provides localized.resources.configuration,
+        LocalConfiguration provides if (tag == null) outer else localized.resources.configuration,
         content = content,
     )
 }
