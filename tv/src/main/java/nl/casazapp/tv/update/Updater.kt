@@ -11,10 +11,6 @@ import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import nl.casazapp.tv.BuildConfig
 
 /**
@@ -22,30 +18,23 @@ import nl.casazapp.tv.BuildConfig
  * each release is tagged `build-N` (N is the version code) and titled date-run, e.g. `260918-8`.
  */
 object Updater {
-    private const val LATEST = "https://api.github.com/repos/QuadNL/CasaZapp-tv-android/releases/latest"
+    // Plain downloads of the latest release: no GitHub API, so no hourly limit per connection.
+    private const val LATEST = "https://github.com/QuadNL/CasaZapp-tv-android/releases/latest/download"
 
     data class Release(val build: Int, val name: String, val apkUrl: String)
 
     /** The latest release when it is newer than this app; null when up to date or unreachable. */
     suspend fun newer(): Release? = withContext(Dispatchers.IO) {
         runCatching {
-            val body = open(LATEST).inputStream.bufferedReader().use { it.readText() }
-            val release = Json.parseToJsonElement(body).jsonObject
-            // Tags stay build-N, which every installed version can read; the title is date-run (260918-8).
-            val tag = release["tag_name"]!!.jsonPrimitive.content
-            val build = tag.substringAfterLast('-').toInt()
-            val name = release["name"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() } ?: tag
-            val apk = release["assets"]!!.jsonArray
-                .map { it.jsonObject }
-                .first { it["name"]!!.jsonPrimitive.content.endsWith(".apk") }["browser_download_url"]!!
-                .jsonPrimitive.content
-            Release(build, name, apk)
+            // version.txt holds "<versionCode> <name>", e.g. "10 260918-10".
+            val (build, name) = open("$LATEST/version.txt").inputStream.bufferedReader().use { it.readText() }
+                .trim().split(' ', limit = 2)
+            Release(build.toInt(), name, "$LATEST/casazapp-tv.apk")
         }.getOrNull()?.takeIf { it.build > BuildConfig.VERSION_CODE }
     }
 
     private fun open(url: String): HttpURLConnection =
         (URL(url).openConnection() as HttpURLConnection).apply {
-            setRequestProperty("Accept", "application/vnd.github+json")
             setRequestProperty("User-Agent", "CasaZapp-TV")
             connectTimeout = 15_000
             readTimeout = 60_000

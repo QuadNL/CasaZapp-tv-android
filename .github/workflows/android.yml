@@ -55,6 +55,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp tv/build/outputs/apk/release/tv-release.apk casazapp-tv.apk
-          gh release create "build-$BUILD_NUMBER" casazapp-tv.apk \
+          # Read by the app without the rate-limited API: "<versionCode> <name>".
+          echo "$BUILD_NUMBER $BUILD_DATE-$BUILD_NUMBER" > version.txt
+          gh release create "build-$BUILD_NUMBER" casazapp-tv.apk version.txt \
             --title "$BUILD_DATE-$BUILD_NUMBER" \
             --notes "$(git log -1 --pretty=%s)"
