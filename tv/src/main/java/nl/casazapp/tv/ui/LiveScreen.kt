@@ -58,9 +58,11 @@ fun LiveScreen(session: Session, onWatch: (Watching) -> Unit) {
     LaunchedEffect(Unit) {
         runCatching {
             val id = api.playlists().firstOrNull()?.id
-            playlistId = id
             lists = api.lists()
-            if (id != null) categories = api.categories(id)
+            // With a primary list the app shows own lists instead of the categories, like the web.
+            lists.firstOrNull { it.primary }?.let { filter = Filter.OwnList(it) }
+            if (id != null && lists.none { it.primary }) categories = api.categories(id)
+            playlistId = id
         }.onFailure { failed = true }
     }
     LaunchedEffect(playlistId, filter) {
@@ -93,7 +95,9 @@ fun LiveScreen(session: Session, onWatch: (Watching) -> Unit) {
         }
 
         LazyRow(Modifier.padding(vertical = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            item { Chip(stringResource(R.string.all), filter == Filter.All) { filter = Filter.All } }
+            if (lists.none { it.primary }) {
+                item { Chip(stringResource(R.string.all), filter == Filter.All) { filter = Filter.All } }
+            }
             items(lists, key = { "l${it.id}" }) { l ->
                 Chip("★ ${l.name}", (filter as? Filter.OwnList)?.list?.id == l.id) { filter = Filter.OwnList(l) }
             }

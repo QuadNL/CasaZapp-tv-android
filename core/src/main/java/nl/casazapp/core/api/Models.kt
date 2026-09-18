@@ -49,4 +49,4 @@ data class Programme(val title: String, val description: String? = null, val sta
 data class NowNext(val now: Programme? = null, val next: Programme? = null)
 
 @Serializable
-data class ChannelList(val id: Int, val name: String, val channels: Int)
+data class ChannelList(val id: Int, val name: String, val channels: Int, val primary: Boolean = false)
