@@ -146,6 +146,7 @@ fun ChannelLogo(name: String, logoUrl: String?, token: String, size: Dp = 48.dp)
         .take(3)
         .uppercase()
     val hue = hueOf(name).toFloat()
+    var loaded by remember(logoUrl) { mutableStateOf(false) }
     Box(
         Modifier.size(size).clip(RoundedCornerShape(10.dp)).background(Color.hsl(hue, 0.35f, 0.18f)),
         contentAlignment = Alignment.Center,
@@ -158,7 +159,9 @@ fun ChannelLogo(name: String, logoUrl: String?, token: String, size: Dp = 48.dp)
                     .httpHeaders(NetworkHeaders.Builder().set("Authorization", "Bearer $token").build())
                     .build(),
                 contentDescription = null,
-                modifier = Modifier.fillMaxSize().background(Color.Transparent).padding(4.dp),
+                // Like the web: once the logo is there it covers the initials, on the surface colour.
+                onSuccess = { loaded = true },
+                modifier = Modifier.fillMaxSize().background(if (loaded) Casa.surface else Color.Transparent).padding(4.dp),
             )
         }
     }

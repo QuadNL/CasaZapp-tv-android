@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
@@ -36,13 +39,14 @@ import nl.casazapp.core.api.ChannelDetail
 import nl.casazapp.core.api.NowNext
 import nl.casazapp.tv.R
 
-/** Home like the web app: continue watching, then your favourite channels. */
+/** Home like the web app: continue watching, your favourite channels, then Live TV. */
 @Composable
 fun HomeScreen(session: Session, lastChannelId: Int?, onWatch: (Watching) -> Unit) {
     val api = session.api
     var last by remember { mutableStateOf<ChannelDetail?>(null) }
     var lastList by remember { mutableStateOf<List<Channel>>(emptyList()) }
     var favorites by remember { mutableStateOf<List<Channel>?>(null) }
+    var row by remember { mutableStateOf<Pair<String, List<Channel>>?>(null) }
     var guide by remember { mutableStateOf<Map<String, NowNext>>(emptyMap()) }
     val favoritesLabel = stringResource(R.string.favorites)
 
@@ -55,7 +59,18 @@ fun HomeScreen(session: Session, lastChannelId: Int?, onWatch: (Watching) -> Uni
                 last = detail
                 lastList = api.channels(playlistId, categoryId = detail.categoryId).items
             }
-            guide = api.nowNext(listOfNotNull(last?.id) + favorites.orEmpty().map { it.id })
+            // Like the web: the primary list, otherwise the first category with more than one channel.
+            val primary = api.lists().firstOrNull { it.primary }
+            row = if (primary != null) {
+                primary.name to api.channels(playlistId, listId = primary.id, limit = 24).items
+            } else {
+                api.categories(playlistId).firstOrNull { it.enabledCount > 1 }?.let {
+                    it.name to api.channels(playlistId, categoryId = it.id, limit = 24).items
+                }
+            }
+            guide = api.nowNext(
+                (listOfNotNull(last?.id) + favorites.orEmpty().map { it.id } + row?.second.orEmpty().map { it.id }).distinct(),
+            )
         }
     }
 
@@ -67,7 +82,7 @@ fun HomeScreen(session: Session, lastChannelId: Int?, onWatch: (Watching) -> Uni
         else -> R.string.greeting_evening
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(28.dp)) {
+    Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(28.dp)) {
         Text(stringResource(greeting), color = Casa.text, fontSize = 32.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
 
         // Continue watching
@@ -112,21 +127,35 @@ fun HomeScreen(session: Session, lastChannelId: Int?, onWatch: (Watching) -> Uni
         if (favs != null && favs.isEmpty()) {
             Text(stringResource(R.string.no_favorites), color = Casa.muted, fontSize = 15.sp)
         } else if (favs != null) {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                itemsIndexed(favs, key = { _, c -> c.id }) { index, channel ->
-                    Column(
-                        Modifier.width(220.dp).focusRing { onWatch(Watching(favs, index, favoritesLabel)) }.padding(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Box(
-                            Modifier.fillMaxSize().aspectRatio(16f / 9f).background(Casa.surface, RoundedCornerShape(12.dp)),
-                            contentAlignment = Alignment.Center,
-                        ) { ChannelLogo(channel.name, session.logo(channel.logo), session.token, 64.dp) }
-                        Text(channel.name, color = Casa.text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        guide[channel.id.toString()]?.now?.let {
-                            Text(it.title, color = Casa.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
+            ChannelRow(session, favs, guide) { index -> onWatch(Watching(favs, index, favoritesLabel)) }
+        }
+
+        row?.let { (label, channels) ->
+            if (channels.isNotEmpty()) {
+                Text(label, color = Casa.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                ChannelRow(session, channels, guide) { index -> onWatch(Watching(channels, index, label)) }
+            }
+        }
+    }
+}
+
+/** A row of channel tiles with what is on now, as on the web Home. */
+@Composable
+private fun ChannelRow(session: Session, channels: List<Channel>, guide: Map<String, NowNext>, onPick: (Int) -> Unit) {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+        itemsIndexed(channels, key = { _, c -> c.id }) { index, channel ->
+            Column(
+                Modifier.width(220.dp).focusRing { onPick(index) }.padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Box(
+                    Modifier.fillMaxSize().aspectRatio(16f / 9f).background(Casa.surface, RoundedCornerShape(12.dp)),
+                    contentAlignment = Alignment.Center,
+                ) { ChannelLogo(channel.name, session.logo(channel.logo), session.token, 64.dp) }
+                Text(channel.name, color = Casa.text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                guide[channel.id.toString()]?.now?.let { now ->
+                    Text(now.title, color = Casa.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    ProgressBar(progressOf(now), Modifier.fillMaxWidth())
                 }
             }
         }
