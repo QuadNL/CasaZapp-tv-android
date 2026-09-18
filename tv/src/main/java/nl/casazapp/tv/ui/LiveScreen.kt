@@ -88,7 +88,7 @@ fun LiveScreen(session: Session, onWatch: (Watching) -> Unit) {
     }
 
     Column {
-        Text(stringResource(R.string.nav_live), color = Casa.text, fontSize = 32.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.nav_live), color = Casa.text, fontSize = if (LocalForm.current.compact) 24.sp else 32.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
         channels?.let {
             Text(stringResource(R.string.channel_count, it.size), color = Casa.muted, fontSize = 15.sp)
         }
@@ -125,6 +125,24 @@ fun LiveScreen(session: Session, onWatch: (Watching) -> Unit) {
 
 @Composable
 private fun ChannelRow(number: Int, channel: Channel, info: NowNext?, session: Session, onClick: () -> Unit) {
+    if (LocalForm.current.compact) {
+        Row(
+            Modifier.fillMaxWidth().focusRing(onClick = onClick).padding(horizontal = 4.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            ChannelLogo(channel.name, session.logo(channel.logo), session.token, 44.dp)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(channel.name, color = Casa.text, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                val now = info?.now
+                if (now != null) {
+                    Text(now.title, color = Casa.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    ProgressBar(progressOf(now), Modifier.fillMaxWidth())
+                }
+            }
+        }
+        return
+    }
     Row(
         Modifier.fillMaxWidth().focusRing(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,

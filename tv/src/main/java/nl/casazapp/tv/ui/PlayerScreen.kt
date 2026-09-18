@@ -27,6 +27,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.ui.draw.clip
@@ -171,6 +173,15 @@ fun PlayerScreen(
     val stage: @Composable (Modifier) -> Unit = { size -> Box(
             size
                 .clickable(interactionSource = null, indication = null) { if (osd) osd = false else showOsd() }
+                .pointerInput(compact) {
+                    if (!compact) return@pointerInput
+                    var dy = 0f
+                    detectVerticalDragGestures(
+                        onDragStart = { dy = 0f },
+                        onDragEnd = { if (dy < -80f) guideOpen = true else if (dy > 80f) guideOpen = false },
+                        onVerticalDrag = { _, amount -> dy += amount },
+                    )
+                }
                 .focusRequester(root)
                 .focusable()
                 .onPreviewKeyEvent { event ->
@@ -213,7 +224,7 @@ fun PlayerScreen(
             }
 
             // With the guide open the picture is small; its own information would only get in the way.
-            if (osd && !guideOpen) {
+            if (osd && (compact || !guideOpen)) {
                 // Top bar: back and channel name.
                 Row(
                     Modifier
@@ -257,7 +268,7 @@ fun PlayerScreen(
                     favorite = favorite,
                     muted = volume == 0f,
                     firstControl = firstControl,
-                    onGuide = { guideOpen = true },
+                    onGuide = { guideOpen = !guideOpen },
                     onFavorite = {
                         favorite = !favorite
                         val value = favorite
@@ -276,16 +287,19 @@ fun PlayerScreen(
         } }
 
     if (compact) {
-        // The guide is always there below the picture, like the web app on a phone.
-        Column(Modifier.fillMaxSize().background(Casa.bg).systemBarsPadding()) {
-            stage(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black))
-            GuidePanel(
-                session = session,
-                watching = watching,
-                onPick = { index -> onZap(index) },
-                compact = true,
-                modifier = Modifier.fillMaxWidth().weight(1f),
-            )
+        // Like the web on a phone: the picture fills the screen; the guide slides in below it.
+        Column(Modifier.fillMaxSize().background(Color.Black).systemBarsPadding()) {
+            stage(Modifier.fillMaxWidth().weight(1f))
+            if (guideOpen) {
+                GuidePanel(
+                    session = session,
+                    watching = watching,
+                    onPick = { index -> onZap(index) },
+                    onClose = { guideOpen = false },
+                    compact = true,
+                    modifier = Modifier.fillMaxWidth().weight(1.7f),
+                )
+            }
         }
         return
     }
@@ -332,6 +346,7 @@ private fun Osd(
                 Text("$number  ${channel.name}", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 guide?.now?.let { Text(it.title, color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             }
+            OsdButton(Icons.guide, Casa.accent, Modifier, onGuide)
             OsdButton(if (favorite) Icons.starFilled else Icons.star, if (favorite) Casa.accent else Color.White, Modifier, onFavorite)
             OsdButton(if (muted) Icons.muted else Icons.volume, Color.White, Modifier, onMute)
         }
@@ -409,7 +424,14 @@ private fun GuideLine(label: String, programme: Programme?, strong: Boolean) {
  * its guide while the picture keeps playing; OK again switches to it.
  */
 @Composable
-private fun GuidePanel(session: Session, watching: Watching, onPick: (Int) -> Unit, modifier: Modifier, compact: Boolean = false) {
+private fun GuidePanel(
+    session: Session,
+    watching: Watching,
+    onPick: (Int) -> Unit,
+    modifier: Modifier,
+    compact: Boolean = false,
+    onClose: (() -> Unit)? = null,
+) {
     val channels = watching.channels
     var selected by remember { mutableStateOf(watching.index) }
     var programmes by remember { mutableStateOf<List<Programme>?>(null) }
@@ -435,9 +457,14 @@ private fun GuidePanel(session: Session, watching: Watching, onPick: (Int) -> Un
                 fontSize = 13.sp,
                 modifier = Modifier.border(1.dp, Casa.line, RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 3.dp),
             )
+            onClose?.let {
+                Box(Modifier.padding(start = 8.dp).size(36.dp).focusRing(CircleShape, onClick = it), contentAlignment = Alignment.Center) {
+                    Icon(Icons.close, Casa.muted, 20.dp)
+                }
+            }
         }
         Row(Modifier.fillMaxSize()) {
-            LazyColumn((if (compact) Modifier.fillMaxWidth(0.55f) else Modifier.width(250.dp)).fillMaxHeight(), state = listState) {
+            LazyColumn((if (compact) Modifier.fillMaxWidth(0.5f) else Modifier.width(250.dp)).fillMaxHeight(), state = listState) {
                 itemsIndexed(channels, key = { _, c -> c.id }) { index, c ->
                     val isPlaying = index == watching.index
                     Row(

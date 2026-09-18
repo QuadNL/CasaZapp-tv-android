@@ -19,6 +19,7 @@ private val TOKEN = stringPreferencesKey("device_token")
 private val LAST_CHANNEL = intPreferencesKey("last_channel")
 private val UI_MODE = stringPreferencesKey("ui_mode")
 private val SOURCE_MODE = stringPreferencesKey("source_mode")
+private val LOCALE = stringPreferencesKey("locale")
 private val LOCAL_PLAYLIST = stringPreferencesKey("local_playlist")
 private val LOCAL_PASSWORD = stringPreferencesKey("local_password")
 
@@ -54,6 +55,13 @@ class ConnectionStore(private val context: Context) {
 
     suspend fun saveUiMode(mode: UiMode) {
         context.dataStore.edit { it[UI_MODE] = mode.name }
+    }
+
+    /** "nl" or "en"; null follows the device language. Wrapped so "not loaded" differs from null. */
+    val locale: Flow<List<String?>> = context.dataStore.data.map { listOf(it[LOCALE]) }
+
+    suspend fun saveLocale(tag: String?) {
+        context.dataStore.edit { if (tag == null) it.remove(LOCALE) else it[LOCALE] = tag }
     }
 
     val sourceMode: Flow<SourceMode?> = context.dataStore.data.map { prefs ->

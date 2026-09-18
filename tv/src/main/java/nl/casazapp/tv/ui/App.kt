@@ -54,7 +54,7 @@ data class Session(val api: TvSource, val serverUrl: String?, val token: String?
 /** Which list the user watches, and where in it; the player zaps through the same list. */
 data class Watching(val channels: List<Channel>, val index: Int, val label: String)
 
-private enum class Route { Home, Live, Settings }
+private enum class Route { Home, Live, Playlists, Settings }
 
 @Composable
 fun App(store: ConnectionStore) {
@@ -64,6 +64,7 @@ fun App(store: ConnectionStore) {
     // Wrapped, so "not loaded yet" differs from "not chosen yet".
     val sourceMode by remember { store.sourceMode.map { listOf(it) } }.collectAsState(initial = null)
     val localPlaylist by store.localPlaylist.collectAsState(initial = null)
+    val locale by store.locale.collectAsState(initial = null)
     var editLocal by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val form = LocalForm.current
@@ -125,15 +126,15 @@ fun App(store: ConnectionStore) {
             when (route) {
                 Route.Home -> HomeScreen(session, lastChannel, onWatch = { watching = it })
                 Route.Live -> LiveScreen(session, onWatch = { watching = it })
+                Route.Playlists -> PlaylistsScreen(session, local, onEditLocal = { editLocal = true })
                 Route.Settings -> SettingsScreen(
                     mode = mode!!,
                     serverUrl = current?.serverUrl,
-                    localPlaylist = local,
+                    locale = locale?.firstOrNull(),
+                    onLocale = { scope.launch { store.saveLocale(it) } },
                     uiMode = uiMode,
                     onUiMode = { scope.launch { store.saveUiMode(it) } },
                     onUnpair = { scope.launch { store.clear() } },
-                    onRefreshLocal = { (session.api as? LocalSource)?.refresh() },
-                    onEditLocal = { editLocal = true },
                     onSwitchMode = { scope.launch { store.saveSourceMode(it) } },
                 )
             }
@@ -156,6 +157,7 @@ fun App(store: ConnectionStore) {
 private val NAV = listOf(
     Triple(Route.Home, Icons.home, R.string.nav_home),
     Triple(Route.Live, Icons.tv, R.string.nav_live),
+    Triple(Route.Playlists, Icons.list, R.string.nav_playlists),
     Triple(Route.Settings, Icons.settings, R.string.nav_settings),
 )
 

@@ -61,4 +61,10 @@
     <string name="change_playlist">Playlist wijzigen</string>
     <string name="switch_to_local">Lokaal gebruiken, zonder server</string>
     <string name="switch_to_server">Verbinden met een server</string>
+    <string name="nav_playlists">Playlists</string>
+    <string name="language">Taal</string>
+    <string name="own_lists">Eigen lijsten</string>
+    <string name="primary">Primair</string>
+    <string name="playlists_server_hint">Playlists en eigen lijsten beheer je in de webinterface van je CasaZapp TV-server.</string>
+    <string name="playlists_local_hint">Deze playlist staat op dit apparaat.</string>
 </resources>

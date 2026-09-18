@@ -60,4 +60,10 @@
     <string name="change_playlist">Change playlist</string>
     <string name="switch_to_local">Use locally, without a server</string>
     <string name="switch_to_server">Connect to a server</string>
+    <string name="nav_playlists">Playlists</string>
+    <string name="language">Language</string>
+    <string name="own_lists">Own lists</string>
+    <string name="primary">Primary</string>
+    <string name="playlists_server_hint">You manage playlists and own lists in the web app of your CasaZapp TV server.</string>
+    <string name="playlists_local_hint">This playlist lives on this device.</string>
 </resources>

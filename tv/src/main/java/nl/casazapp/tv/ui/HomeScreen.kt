@@ -45,6 +45,7 @@ fun HomeScreen(session: Session, lastChannelId: Int?, onWatch: (Watching) -> Uni
     val api = session.api
     var last by remember { mutableStateOf<ChannelDetail?>(null) }
     var lastList by remember { mutableStateOf<List<Channel>>(emptyList()) }
+    var lastLabel by remember { mutableStateOf("") }
     var favorites by remember { mutableStateOf<List<Channel>?>(null) }
     var row by remember { mutableStateOf<Pair<String, List<Channel>>?>(null) }
     var guide by remember { mutableStateOf<Map<String, NowNext>>(emptyMap()) }
@@ -54,13 +55,20 @@ fun HomeScreen(session: Session, lastChannelId: Int?, onWatch: (Watching) -> Uni
         runCatching {
             val playlistId = api.playlists().firstOrNull()?.id ?: return@runCatching
             favorites = api.channels(playlistId, favorites = true, limit = 40).items
+            // Like the web: the primary list, otherwise the first category with more than one channel.
+            val primary = api.lists().firstOrNull { it.primary }
             lastChannelId?.let { id ->
                 val detail = api.channel(id)
                 last = detail
-                lastList = api.channels(playlistId, categoryId = detail.categoryId).items
+                val inPrimary = primary?.let { api.channels(playlistId, listId = it.id).items }
+                if (inPrimary != null && inPrimary.any { it.id == id }) {
+                    lastList = inPrimary
+                    lastLabel = primary.name
+                } else {
+                    lastList = api.channels(playlistId, categoryId = detail.categoryId).items
+                    lastLabel = detail.categoryName ?: ""
+                }
             }
-            // Like the web: the primary list, otherwise the first category with more than one channel.
-            val primary = api.lists().firstOrNull { it.primary }
             row = if (primary != null) {
                 primary.name to api.channels(playlistId, listId = primary.id, limit = 24).items
             } else {
@@ -84,7 +92,7 @@ fun HomeScreen(session: Session, lastChannelId: Int?, onWatch: (Watching) -> Uni
     }
 
     Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(if (compact) 18.dp else 28.dp)) {
-        Text(stringResource(greeting), color = Casa.text, fontSize = if (compact) 26.sp else 32.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(greeting), color = Casa.text, fontSize = if (compact) 24.sp else 32.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
 
         // Continue watching
         val hero: @Composable (Modifier) -> Unit = { size ->
@@ -99,7 +107,7 @@ fun HomeScreen(session: Session, lastChannelId: Int?, onWatch: (Watching) -> Uni
                     .focusRing(RoundedCornerShape(16.dp)) {
                         if (current != null) {
                             val index = lastList.indexOfFirst { it.id == current.id }.coerceAtLeast(0)
-                            if (lastList.isNotEmpty()) onWatch(Watching(lastList, index, current.categoryName ?: ""))
+                            if (lastList.isNotEmpty()) onWatch(Watching(lastList, index, lastLabel))
                         }
                     },
                 contentAlignment = Alignment.Center,
@@ -115,7 +123,7 @@ fun HomeScreen(session: Session, lastChannelId: Int?, onWatch: (Watching) -> Uni
                     Text(stringResource(R.string.nothing_yet), color = Casa.muted, fontSize = 18.sp)
                 } else {
                     Text(current.name, color = Casa.text, fontSize = if (compact) 22.sp else 30.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
-                    current.categoryName?.let { Text(it, color = Casa.muted, fontSize = 16.sp) }
+                    lastLabel.takeIf { it.isNotEmpty() }?.let { Text(it, color = Casa.muted, fontSize = 16.sp) }
                     guide[current.id.toString()]?.now?.let { now ->
                         Text("${now.title} · ${time(now.start)}–${time(now.stop)}", color = Casa.text, fontSize = 17.sp)
                         ProgressBar(progressOf(now), Modifier.width(320.dp))
@@ -124,7 +132,7 @@ fun HomeScreen(session: Session, lastChannelId: Int?, onWatch: (Watching) -> Uni
             }
         }
         if (compact) {
-            hero(Modifier.fillMaxWidth())
+            if (last != null) hero(Modifier.fillMaxWidth())
             info()
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(32.dp), verticalAlignment = Alignment.CenterVertically) {
