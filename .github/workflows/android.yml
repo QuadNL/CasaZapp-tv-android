@@ -55,6 +55,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp tv/build/outputs/apk/release/tv-release.apk casazapp-tv.apk
-          gh release create "$BUILD_DATE-$BUILD_NUMBER" casazapp-tv.apk \
+          gh release create "build-$BUILD_NUMBER" casazapp-tv.apk \
             --title "$BUILD_DATE-$BUILD_NUMBER" \
             --notes "$(git log -1 --pretty=%s)"

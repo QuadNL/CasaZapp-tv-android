@@ -19,7 +19,7 @@ import nl.casazapp.tv.BuildConfig
 
 /**
  * Updates the app from the GitHub releases of CasaZapp-tv-android, independent of the server:
- * each release is tagged date-run (e.g. `260918-7`); the run number is the version code.
+ * each release is tagged `build-N` (N is the version code) and titled date-run, e.g. `260918-8`.
  */
 object Updater {
     private const val LATEST = "https://api.github.com/repos/QuadNL/CasaZapp-tv-android/releases/latest"
@@ -31,14 +31,15 @@ object Updater {
         runCatching {
             val body = open(LATEST).inputStream.bufferedReader().use { it.readText() }
             val release = Json.parseToJsonElement(body).jsonObject
-            // Tags are date-run (260918-7) or, before that, build-6: the run number decides.
+            // Tags stay build-N, which every installed version can read; the title is date-run (260918-8).
             val tag = release["tag_name"]!!.jsonPrimitive.content
             val build = tag.substringAfterLast('-').toInt()
+            val name = release["name"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() } ?: tag
             val apk = release["assets"]!!.jsonArray
                 .map { it.jsonObject }
                 .first { it["name"]!!.jsonPrimitive.content.endsWith(".apk") }["browser_download_url"]!!
                 .jsonPrimitive.content
-            Release(build, tag.removePrefix("build-"), apk)
+            Release(build, name, apk)
         }.getOrNull()?.takeIf { it.build > BuildConfig.VERSION_CODE }
     }
 
