@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -22,7 +23,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -50,9 +61,13 @@ private sealed interface Pairing {
  */
 @Composable
 fun ConnectScreen(onConnected: (Connection) -> Unit) {
-    var server by remember { mutableStateOf("https://") }
+    // Start typing after the scheme: that is where the address goes.
+    var field by remember { mutableStateOf(TextFieldValue("https://", TextRange(8))) }
+    val server = field.text.trim()
     var pairing by remember { mutableStateOf<Pairing>(Pairing.Idle) }
     var attempt by remember { mutableIntStateOf(0) }
+    // A text field keeps the D-pad for its cursor; send "down" and "done" on to the button.
+    val button = remember { FocusRequester() }
 
     LaunchedEffect(attempt) {
         if (attempt == 0) return@LaunchedEffect
@@ -100,13 +115,22 @@ fun ConnectScreen(onConnected: (Connection) -> Unit) {
             else -> {
                 Text(stringResource(R.string.server_url), color = Casa.muted, fontSize = 16.sp)
                 BasicTextField(
-                    value = server,
-                    onValueChange = { server = it.trim() },
+                    value = field,
+                    onValueChange = { field = it },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { button.requestFocus() }),
                     textStyle = TextStyle(color = Casa.text, fontSize = 22.sp),
                     cursorBrush = SolidColor(Casa.accent),
                     modifier = Modifier
+                        .onPreviewKeyEvent {
+                            if (it.type == KeyEventType.KeyDown && it.key == Key.DirectionDown) {
+                                button.requestFocus()
+                                true
+                            } else {
+                                false
+                            }
+                        }
                         .width(560.dp)
                         .background(Casa.surface, RoundedCornerShape(12.dp))
                         .border(1.dp, Casa.line, RoundedCornerShape(12.dp))
@@ -114,7 +138,11 @@ fun ConnectScreen(onConnected: (Connection) -> Unit) {
                 )
                 if (p is Pairing.Expired) Text(stringResource(R.string.code_expired), color = Casa.live)
                 if (p is Pairing.Failed) Text(stringResource(R.string.connect_failed), color = Casa.live)
-                Button(onClick = { attempt++ }, enabled = server.length > "https://".length) {
+                Button(
+                    onClick = { attempt++ },
+                    enabled = server.length > "https://".length,
+                    modifier = Modifier.focusRequester(button),
+                ) {
                     Text(stringResource(R.string.request_code))
                 }
                 Text(stringResource(R.string.local_mode), color = Casa.muted, fontSize = 14.sp)
