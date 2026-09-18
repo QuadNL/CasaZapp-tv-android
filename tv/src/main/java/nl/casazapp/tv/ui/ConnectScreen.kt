@@ -36,7 +36,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -97,7 +96,7 @@ fun ConnectScreen(onConnected: (Connection) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("CasaZapp TV", color = Casa.accent, fontSize = 34.sp, fontWeight = FontWeight.Bold)
+        Text("CasaZapp TV", color = Casa.accent, fontSize = 34.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.Bold)
         Text(stringResource(R.string.connect_title), color = Casa.text, fontSize = 22.sp)
 
         when (val p = pairing) {
@@ -107,7 +106,7 @@ fun ConnectScreen(onConnected: (Connection) -> Unit) {
                     p.code,
                     color = Casa.accent,
                     fontSize = 64.sp,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = CasaFonts.mono,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(stringResource(R.string.waiting), color = Casa.muted, fontSize = 16.sp)

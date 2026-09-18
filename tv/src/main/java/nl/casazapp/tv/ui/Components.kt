@@ -50,7 +50,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import nl.casazapp.core.api.Programme
 
-/** The same icon paths as the web app (apps/web/src/ui.tsx), drawn as 24×24 strokes. */
+/** The web app's icons (see Design.kt), drawn as 24×24 strokes. */
 object Icons {
     private fun icon(d: String, filled: Boolean = false): ImageVector =
         ImageVector.Builder(defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
@@ -64,18 +64,18 @@ object Icons {
             )
             .build()
 
-    val home = icon("M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z")
-    val tv = icon("M5 6h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zM8 2l4 4 4-4")
-    val settings = icon("M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15l1.6 1.2-2 3.4-1.9-.7a7 7 0 0 1-2 1.2L14.8 22h-4l-.3-1.9a7 7 0 0 1-2-1.2l-1.9.7-2-3.4L6.2 15a7 7 0 0 1 0-2.4L4.6 11.4l2-3.4 1.9.7a7 7 0 0 1 2-1.2L10.8 5.6h4l.3 1.9a7 7 0 0 1 2 1.2l1.9-.7 2 3.4-1.6 1.2a7 7 0 0 1 0 2.4z")
-    val back = icon("M15 18l-6-6 6-6")
-    val up = icon("m18 15-6-6-6 6")
-    val down = icon("m6 9 6 6 6-6")
-    val star = icon("m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9z")
-    val starFilled = icon("m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9z", filled = true)
-    val guide = icon("M4 5h16v14H4zM4 10h16M9 10v9")
-    val play = icon("M6 4v16l14-8z", filled = true)
-    val volume = icon("M11 5 6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13")
-    val muted = icon("M11 5 6 9H3v6h3l5 4zM22 9l-6 6M16 9l6 6")
+    val home = icon(IconPaths.home)
+    val tv = icon(IconPaths.tv)
+    val settings = icon(IconPaths.settings)
+    val back = icon(IconPaths.back)
+    val up = icon(IconPaths.up)
+    val down = icon(IconPaths.down)
+    val star = icon(IconPaths.star)
+    val starFilled = icon(IconPaths.star, filled = true)
+    val guide = icon(IconPaths.guide)
+    val play = icon(IconPaths.play, filled = true)
+    val volume = icon(IconPaths.volume)
+    val muted = icon(IconPaths.muted)
 }
 
 @Composable

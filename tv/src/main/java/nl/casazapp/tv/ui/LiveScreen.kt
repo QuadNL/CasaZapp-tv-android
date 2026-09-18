@@ -23,7 +23,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -89,7 +88,7 @@ fun LiveScreen(session: Session, onWatch: (Watching) -> Unit) {
     }
 
     Column {
-        Text(stringResource(R.string.nav_live), color = Casa.text, fontSize = 32.sp, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.nav_live), color = Casa.text, fontSize = 32.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
         channels?.let {
             Text(stringResource(R.string.channel_count, it.size), color = Casa.muted, fontSize = 15.sp)
         }
@@ -131,7 +130,7 @@ private fun ChannelRow(number: Int, channel: Channel, info: NowNext?, session: S
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        Text(number.toString(), color = Casa.muted, fontFamily = FontFamily.Monospace, fontSize = 15.sp, modifier = Modifier.width(40.dp))
+        Text(number.toString(), color = Casa.muted, fontFamily = CasaFonts.mono, fontSize = 15.sp, modifier = Modifier.width(40.dp))
         ChannelLogo(channel.name, session.logo(channel.logo), session.token, 52.dp)
         Text(
             channel.name,
@@ -149,7 +148,7 @@ private fun ChannelRow(number: Int, channel: Channel, info: NowNext?, session: S
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(now.title, color = Casa.text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                    Text("${time(now.start)}–${time(now.stop)}", color = Casa.muted, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                    Text("${time(now.start)}–${time(now.stop)}", color = Casa.muted, fontFamily = CasaFonts.mono, fontSize = 12.sp)
                 }
                 Spacer(Modifier.height(5.dp))
                 ProgressBar(progressOf(now), Modifier.width(260.dp))

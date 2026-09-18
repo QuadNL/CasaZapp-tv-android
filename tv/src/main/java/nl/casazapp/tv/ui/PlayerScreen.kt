@@ -50,7 +50,6 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -309,7 +308,7 @@ private fun Osd(
             OsdButton(if (muted) Icons.muted else Icons.volume, Color.White, Modifier, onMute)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-            Text(number.toString(), color = Casa.accent, fontSize = 40.sp, fontFamily = FontFamily.Monospace)
+            Text(number.toString(), color = Casa.accent, fontSize = 40.sp, fontFamily = CasaFonts.mono)
             ChannelLogo(channel.name, session.logo(channel.logo), session.token, 60.dp)
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -322,7 +321,7 @@ private fun Osd(
                         modifier = Modifier.background(Casa.live, RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
                     )
                 }
-                Text(channel.name, color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.SemiBold)
+                Text(channel.name, color = Color.White, fontSize = 34.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -350,7 +349,7 @@ private fun GuideLine(label: String, programme: Programme?, strong: Boolean) {
         if (programme == null) {
             Text("–", color = Color.White.copy(alpha = 0.4f), fontSize = 15.sp)
         } else {
-            Text("${time(programme.start)}–${time(programme.stop)}", color = Color.White.copy(alpha = 0.5f), fontFamily = FontFamily.Monospace, fontSize = 13.sp)
+            Text("${time(programme.start)}–${time(programme.stop)}", color = Color.White.copy(alpha = 0.5f), fontFamily = CasaFonts.mono, fontSize = 13.sp)
             Text(
                 programme.title,
                 color = if (strong) Color.White else Color.White.copy(alpha = 0.7f),
@@ -411,7 +410,7 @@ private fun GuidePanel(session: Session, watching: Watching, onPick: (Int) -> Un
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        Text((index + 1).toString(), color = Casa.muted, fontFamily = FontFamily.Monospace, fontSize = 12.sp, modifier = Modifier.width(28.dp))
+                        Text((index + 1).toString(), color = Casa.muted, fontFamily = CasaFonts.mono, fontSize = 12.sp, modifier = Modifier.width(28.dp))
                         ChannelLogo(c.name, session.logo(c.logo), session.token, 36.dp)
                         Column(Modifier.weight(1f)) {
                             Text(c.name, color = Casa.text, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -443,7 +442,7 @@ private fun GuidePanel(session: Session, watching: Watching, onPick: (Int) -> Un
                             Modifier.fillMaxWidth().background(if (playing) Casa.raised else Color.Transparent).padding(horizontal = 16.dp, vertical = 9.dp),
                         ) {
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Text(time(p.start), color = if (playing) Casa.accent else Casa.muted, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                                Text(time(p.start), color = if (playing) Casa.accent else Casa.muted, fontFamily = CasaFonts.mono, fontSize = 12.sp)
                                 Text(p.title, color = Casa.text, fontSize = 14.sp, fontWeight = if (playing) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                             if (playing) ProgressBar(progressOf(p), Modifier.padding(start = 52.dp, top = 6.dp).fillMaxWidth())

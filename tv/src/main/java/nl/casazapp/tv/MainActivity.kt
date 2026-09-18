@@ -7,9 +7,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Density
+import androidx.tv.material3.ProvideTextStyle
 import nl.casazapp.core.store.ConnectionStore
 import nl.casazapp.tv.ui.App
+import nl.casazapp.tv.ui.CasaFonts
 
 /**
  * Width of the canvas the screens are designed for: the web app's desktop layout. Android TV
@@ -33,6 +36,7 @@ private fun DesignScale(content: @Composable () -> Unit) {
     val scale = width / DESIGN_WIDTH_DP
     CompositionLocalProvider(
         LocalDensity provides Density(density.density * scale, density.fontScale),
-        content = content,
-    )
+    ) {
+        ProvideTextStyle(TextStyle(fontFamily = CasaFonts.sans), content)
+    }
 }

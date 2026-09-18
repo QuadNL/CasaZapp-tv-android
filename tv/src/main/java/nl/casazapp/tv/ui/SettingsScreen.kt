@@ -24,7 +24,7 @@ import nl.casazapp.tv.R
 @Composable
 fun SettingsScreen(serverUrl: String, onUnpair: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        Text(stringResource(R.string.nav_settings), color = Casa.text, fontSize = 32.sp, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.nav_settings), color = Casa.text, fontSize = 32.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
         Column(
             Modifier.width(640.dp).background(Casa.surface, RoundedCornerShape(16.dp)).padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),

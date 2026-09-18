@@ -68,7 +68,7 @@ fun HomeScreen(session: Session, lastChannelId: Int?, onWatch: (Watching) -> Uni
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(28.dp)) {
-        Text(stringResource(greeting), color = Casa.text, fontSize = 32.sp, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(greeting), color = Casa.text, fontSize = 32.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
 
         // Continue watching
         Row(horizontalArrangement = Arrangement.spacedBy(32.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -96,7 +96,7 @@ fun HomeScreen(session: Session, lastChannelId: Int?, onWatch: (Watching) -> Uni
                 if (current == null) {
                     Text(stringResource(R.string.nothing_yet), color = Casa.muted, fontSize = 18.sp)
                 } else {
-                    Text(current.name, color = Casa.text, fontSize = 30.sp, fontWeight = FontWeight.SemiBold)
+                    Text(current.name, color = Casa.text, fontSize = 30.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
                     current.categoryName?.let { Text(it, color = Casa.muted, fontSize = 16.sp) }
                     guide[current.id.toString()]?.now?.let { now ->
                         Text("${now.title} · ${time(now.start)}–${time(now.stop)}", color = Casa.text, fontSize = 17.sp)
