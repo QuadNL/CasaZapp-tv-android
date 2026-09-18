@@ -8,6 +8,7 @@ import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -65,13 +66,42 @@ class CasaZappApi(baseUrl: String, private val token: String? = null) {
 
     suspend fun lists(): List<ChannelList> = authed("api/lists")
 
-    /** Visible channels; with `listId` the user's own list in its own order. */
-    suspend fun channels(playlistId: Int, listId: Int? = null, limit: Int = 500, offset: Int = 0): ChannelPage =
+    suspend fun categories(playlistId: Int): List<Category> =
+        authed("api/playlists/$playlistId/categories") { parameter("type", "live") }
+
+    /**
+     * Visible channels, like the web app's Live TV: all of them, one category, the favourites, or
+     * one of the user's own lists (in its own order).
+     */
+    suspend fun channels(
+        playlistId: Int,
+        listId: Int? = null,
+        categoryId: Int? = null,
+        favorites: Boolean = false,
+        limit: Int = 500,
+        offset: Int = 0,
+    ): ChannelPage =
         authed("api/playlists/$playlistId/channels") {
             parameter("limit", limit)
             parameter("offset", offset)
             listId?.let { parameter("listId", it) }
+            categoryId?.let { parameter("categoryId", it) }
+            if (favorites) parameter("favorites", true)
         }
+
+    suspend fun channel(id: Int): ChannelDetail = authed("api/channels/$id")
+
+    /** Every programme of one channel from now on, for the guide next to the picture. */
+    suspend fun guide(channelId: Int): List<Programme> = authed("api/epg/channel/$channelId")
+
+    suspend fun setFavorite(channelId: Int, favorite: Boolean) {
+        val response = client.patch("api/channels/$channelId") {
+            token?.let { bearerAuth(it) }
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject { put("favorite", favorite) })
+        }
+        if (response.status.value !in 200..299) throw ApiException(response.status)
+    }
 
     suspend fun nowNext(channelIds: List<Int>): Map<String, NowNext> =
         if (channelIds.isEmpty()) emptyMap()

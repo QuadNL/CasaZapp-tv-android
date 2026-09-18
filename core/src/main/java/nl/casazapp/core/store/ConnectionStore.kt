@@ -2,6 +2,7 @@ package nl.casazapp.core.store
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -13,6 +14,7 @@ data class Connection(val serverUrl: String, val token: String)
 private val Context.dataStore by preferencesDataStore("connection")
 private val SERVER = stringPreferencesKey("server_url")
 private val TOKEN = stringPreferencesKey("device_token")
+private val LAST_CHANNEL = intPreferencesKey("last_channel")
 
 class ConnectionStore(private val context: Context) {
     val connection: Flow<Connection?> = context.dataStore.data.map { prefs ->
@@ -26,6 +28,12 @@ class ConnectionStore(private val context: Context) {
             it[SERVER] = connection.serverUrl
             it[TOKEN] = connection.token
         }
+    }
+
+    val lastChannel: Flow<Int?> = context.dataStore.data.map { it[LAST_CHANNEL] }
+
+    suspend fun saveLastChannel(id: Int) {
+        context.dataStore.edit { it[LAST_CHANNEL] = id }
     }
 
     suspend fun clear() {

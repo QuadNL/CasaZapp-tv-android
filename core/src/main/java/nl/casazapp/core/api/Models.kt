@@ -23,6 +23,20 @@ data class Channel(
 )
 
 @Serializable
+data class ChannelDetail(
+    val id: Int,
+    val playlistId: Int,
+    val name: String,
+    val logo: String? = null,
+    val categoryId: Int? = null,
+    val categoryName: String? = null,
+    val favorite: Boolean = false,
+)
+
+@Serializable
+data class Category(val id: Int, val type: String, val name: String, val enabledCount: Int = 0)
+
+@Serializable
 data class ChannelPage(val total: Int, val offset: Int = 0, val items: List<Channel>)
 
 @Serializable

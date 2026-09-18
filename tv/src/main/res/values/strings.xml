@@ -15,4 +15,27 @@
     <string name="next">Straks</string>
     <string name="play_failed">Deze zender speelt nu niet af.</string>
     <string name="unpair">Ontkoppelen</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_live">Live TV</string>
+    <string name="nav_settings">Instellingen</string>
+    <string name="greeting_morning">Goedemorgen</string>
+    <string name="greeting_afternoon">Goedemiddag</string>
+    <string name="greeting_evening">Goedenavond</string>
+    <string name="greeting_night">Goedenacht</string>
+    <string name="continue_watching">Verder kijken</string>
+    <string name="watch">Kijken</string>
+    <string name="nothing_yet">Kies een zender in Live TV om te beginnen.</string>
+    <string name="favorite_channels">Favoriete zenders</string>
+    <string name="no_favorites">Nog geen favorieten. Druk in de speler op de ster.</string>
+    <string name="favorites">Favorieten</string>
+    <string name="all">Alle</string>
+    <string name="channel_count">%1$d zenders</string>
+    <string name="live_badge">LIVE</string>
+    <string name="no_guide">Geen programma-informatie</string>
+    <string name="guide">Programmagids</string>
+    <string name="today">Vandaag</string>
+    <string name="watch_channel">Kijk %1$s</string>
+    <string name="player_hint">↑/↓ zappen · OK info · → gids · Terug sluiten</string>
+    <string name="server">Server</string>
+    <string name="version">Versie</string>
 </resources>
