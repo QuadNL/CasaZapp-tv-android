@@ -19,6 +19,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +54,7 @@ fun LiveScreen(session: Session, onWatch: (Watching) -> Unit) {
     var channels by remember { mutableStateOf<List<Channel>?>(null) }
     var guide by remember { mutableStateOf<Map<String, NowNext>>(emptyMap()) }
     var failed by remember { mutableStateOf(false) }
+    var timeline by rememberSaveable { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
         runCatching {
@@ -89,8 +91,15 @@ fun LiveScreen(session: Session, onWatch: (Watching) -> Unit) {
 
     Column {
         Text(stringResource(R.string.nav_live), color = Casa.text, fontSize = if (LocalForm.current.compact) 24.sp else 32.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
-        channels?.let {
-            Text(stringResource(R.string.channel_count, it.size), color = Casa.muted, fontSize = 15.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            channels?.let {
+                Text(stringResource(R.string.channel_count, it.size), color = Casa.muted, fontSize = 15.sp, modifier = Modifier.weight(1f))
+            }
+            // Timeline or list, like the switch on the web.
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Chip(stringResource(R.string.timeline), timeline) { timeline = true }
+                Chip(stringResource(R.string.list), !timeline) { timeline = false }
+            }
         }
 
         LazyRow(Modifier.padding(vertical = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -112,6 +121,7 @@ fun LiveScreen(session: Session, onWatch: (Watching) -> Unit) {
         when {
             failed -> Text(stringResource(R.string.connect_failed), color = Casa.live)
             current == null -> Text(stringResource(R.string.loading), color = Casa.muted)
+            timeline -> LiveTimeline(session, current) { index -> onWatch(Watching(current, index, label)) }
             else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 itemsIndexed(current, key = { _, c -> c.id }) { index, channel ->
                     ChannelRow(index + 1, channel, guide[channel.id.toString()], session) {

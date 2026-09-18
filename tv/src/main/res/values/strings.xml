@@ -67,4 +67,6 @@
     <string name="primary">Primair</string>
     <string name="playlists_server_hint">Playlists en eigen lijsten beheer je in de webinterface van je CasaZapp TV-server.</string>
     <string name="playlists_local_hint">Deze playlist staat op dit apparaat.</string>
+    <string name="timeline">Tijdlijn</string>
+    <string name="list">Lijst</string>
 </resources>

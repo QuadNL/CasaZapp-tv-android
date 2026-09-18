@@ -264,6 +264,22 @@ class LocalSource(dir: File, private val playlist: LocalPlaylist) : TvSource {
         }
     }
 
+    /** Xtream short EPG per channel (cached, a few at a time); only the first rows, to spare the provider. */
+    override suspend fun grid(channelIds: List<Int>, from: Instant, hours: Int): Map<String, List<Programme>> {
+        if (!playlist.isXtream) return emptyMap()
+        val to = from.plusSeconds(hours * 3600L)
+        val gate = Semaphore(4)
+        return coroutineScope {
+            channelIds.take(40).map { id ->
+                async {
+                    gate.withPermit {
+                        id.toString() to guide(id).filter { Instant.parse(it.stop) > from && Instant.parse(it.start) < to }
+                    }
+                }
+            }.awaitAll().toMap()
+        }
+    }
+
     override suspend fun stream(channelId: Int): ChannelStream {
         val c = data().channels.first { it.id == channelId }
         return if (playlist.isXtream) {

@@ -20,6 +20,8 @@ interface TvSource {
     suspend fun guide(channelId: Int): List<Programme>
     suspend fun setFavorite(channelId: Int, favorite: Boolean)
     suspend fun nowNext(channelIds: List<Int>): Map<String, NowNext>
+    /** Programmes per channel id from [from] for [hours] hours, for the Live TV timeline. */
+    suspend fun grid(channelIds: List<Int>, from: java.time.Instant, hours: Int): Map<String, List<Programme>>
     suspend fun stream(channelId: Int): ChannelStream
     fun close()
 }

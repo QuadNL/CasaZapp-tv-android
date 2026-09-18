@@ -66,4 +66,6 @@
     <string name="primary">Primary</string>
     <string name="playlists_server_hint">You manage playlists and own lists in the web app of your CasaZapp TV server.</string>
     <string name="playlists_local_hint">This playlist lives on this device.</string>
+    <string name="timeline">Timeline</string>
+    <string name="list">List</string>
 </resources>

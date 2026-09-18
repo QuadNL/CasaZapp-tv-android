@@ -107,6 +107,15 @@ class CasaZappApi(baseUrl: String, private val token: String? = null) : TvSource
         if (channelIds.isEmpty()) emptyMap()
         else authed("api/epg/now-next") { parameter("channels", channelIds.take(200).joinToString(",")) }
 
+    override suspend fun grid(channelIds: List<Int>, from: java.time.Instant, hours: Int): Map<String, List<Programme>> =
+        channelIds.chunked(200).fold(emptyMap()) { all, chunk ->
+            all + authed<Map<String, List<Programme>>>("api/epg/grid") {
+                parameter("channels", chunk.joinToString(","))
+                parameter("from", from.toString())
+                parameter("hours", hours)
+            }
+        }
+
     /** The provider URL itself: a native player streams directly, not through the server. */
     override suspend fun stream(channelId: Int): ChannelStream = authed("api/channels/$channelId/stream")
 
