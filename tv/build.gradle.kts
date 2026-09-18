@@ -15,6 +15,8 @@ android {
         versionCode = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1
         // Shown as date-run, e.g. 260918-7; the run number alone decides what is newer.
         versionName = "${System.getenv("BUILD_DATE") ?: "dev"}-$versionCode"
+        // The commit the build came from, shown next to the version in Settings.
+        buildConfigField("String", "COMMIT", "\"${System.getenv("GITHUB_SHA")?.take(7) ?: "local"}\"")
     }
 
     // Releases are signed in CI with the key from the repository secrets; without it, release builds

@@ -91,6 +91,7 @@ fun SettingsScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("${stringResource(R.string.version)}: ${BuildConfig.VERSION_NAME}", color = Casa.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Commit ${BuildConfig.COMMIT}", color = Casa.muted, fontFamily = CasaFonts.mono, fontSize = 13.sp)
                     when (checked) {
                         true -> Text(stringResource(R.string.update_found), color = Casa.accent, fontSize = 14.sp)
                         false -> Text(stringResource(R.string.update_none), color = Casa.muted, fontSize = 14.sp)
