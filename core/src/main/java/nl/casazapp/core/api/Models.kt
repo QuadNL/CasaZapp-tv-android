@@ -1,0 +1,38 @@
+package nl.casazapp.core.api
+
+import kotlinx.serialization.Serializable
+
+// Mirrors packages/shared/src/index.ts in the CasaZapp-tv repo; only the fields the app uses.
+
+@Serializable
+data class PairingStart(val code: String, val expiresAt: String)
+
+@Serializable
+data class PairingStatus(val status: String, val token: String? = null)
+
+@Serializable
+data class Playlist(val id: Int, val name: String)
+
+@Serializable
+data class Channel(
+    val id: Int,
+    val name: String,
+    val logo: String? = null,
+    val categoryId: Int? = null,
+    val favorite: Boolean = false,
+)
+
+@Serializable
+data class ChannelPage(val total: Int, val offset: Int = 0, val items: List<Channel>)
+
+@Serializable
+data class ChannelStream(val url: String, val format: String, val userAgent: String? = null)
+
+@Serializable
+data class Programme(val title: String, val description: String? = null, val start: String, val stop: String)
+
+@Serializable
+data class NowNext(val now: Programme? = null, val next: Programme? = null)
+
+@Serializable
+data class ChannelList(val id: Int, val name: String, val channels: Int)

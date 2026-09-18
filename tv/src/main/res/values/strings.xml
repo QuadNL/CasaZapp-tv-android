@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CasaZapp TV</string>
+    <string name="connect_title">Verbinden met je CasaZapp TV-server</string>
+    <string name="server_url">Serveradres</string>
+    <string name="request_code">Koppelcode aanvragen</string>
+    <string name="code_hint">Open CasaZapp TV op je telefoon of computer, ga naar Instellingen → Apparaten en vul deze code in:</string>
+    <string name="waiting">Wachten op goedkeuring…</string>
+    <string name="code_expired">De code is verlopen. Vraag een nieuwe aan.</string>
+    <string name="connect_failed">Kan de server niet bereiken. Klopt het adres?</string>
+    <string name="local_mode">Lokaal gebruiken (zonder server) — komt later</string>
+    <string name="all_channels">Alle zenders</string>
+    <string name="loading">Laden…</string>
+    <string name="now">Nu</string>
+    <string name="next">Straks</string>
+    <string name="play_failed">Deze zender speelt nu niet af.</string>
+    <string name="unpair">Ontkoppelen</string>
+</resources>
