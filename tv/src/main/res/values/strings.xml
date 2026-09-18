@@ -8,7 +8,6 @@
     <string name="waiting">Wachten op goedkeuring…</string>
     <string name="code_expired">De code is verlopen. Vraag een nieuwe aan.</string>
     <string name="connect_failed">Kan de server niet bereiken. Klopt het adres?</string>
-    <string name="local_mode">Lokaal gebruiken (zonder server) — komt later</string>
     <string name="all_channels">Alle zenders</string>
     <string name="loading">Laden…</string>
     <string name="now">Nu</string>
@@ -43,4 +42,23 @@
     <string name="display_auto">Automatisch</string>
     <string name="display_tv">Tv</string>
     <string name="display_mobile">Mobiel</string>
+    <string name="welcome_title">Hoe wil je CasaZapp TV gebruiken?</string>
+    <string name="mode_local">Lokaal op dit apparaat</string>
+    <string name="mode_local_hint">Voeg hier zelf een Xtream- of M3U-playlist toe. Geen server nodig; alles blijft op dit apparaat.</string>
+    <string name="mode_server">Verbinden met een CasaZapp TV-server</string>
+    <string name="mode_server_hint">Je playlists, favorieten, eigen lijsten en gids komen van je eigen server. Koppelen met een code.</string>
+    <string name="local_title">Playlist op dit apparaat</string>
+    <string name="local_hint">De gegevens blijven op dit apparaat; het wachtwoord wordt versleuteld bewaard.</string>
+    <string name="playlist_name">Naam</string>
+    <string name="m3u_url">M3U-URL</string>
+    <string name="username">Gebruikersnaam</string>
+    <string name="password">Wachtwoord</string>
+    <string name="local_save">Opslaan en laden</string>
+    <string name="local_failed">Laden lukt niet. Kloppen het adres en de gegevens?</string>
+    <string name="local_refreshed">%1$d zenders geladen</string>
+    <string name="back">Terug</string>
+    <string name="refresh">Verversen</string>
+    <string name="change_playlist">Playlist wijzigen</string>
+    <string name="switch_to_local">Lokaal gebruiken, zonder server</string>
+    <string name="switch_to_server">Verbinden met een server</string>
 </resources>

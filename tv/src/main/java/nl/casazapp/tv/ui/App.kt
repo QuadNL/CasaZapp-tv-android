@@ -34,12 +34,21 @@ import nl.casazapp.core.api.CasaZappApi
 import nl.casazapp.core.api.Channel
 import nl.casazapp.core.store.ConnectionStore
 import nl.casazapp.core.store.UiMode
+import nl.casazapp.core.store.SourceMode
+import nl.casazapp.core.api.TvSource
+import nl.casazapp.core.local.LocalSource
+import kotlinx.coroutines.flow.map
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.systemBarsPadding
 import nl.casazapp.tv.R
 
-/** Everything the screens need to talk to the server and load logos. */
-data class Session(val api: CasaZappApi, val serverUrl: String, val token: String) {
-    fun logo(path: String?) = path?.let { serverUrl + it }
+/**
+ * Everything the screens need: where channels come from, and how to load logos. In local mode
+ * there is no server: logos are the provider's own URLs and need no token.
+ */
+data class Session(val api: TvSource, val serverUrl: String?, val token: String?) {
+    fun logo(path: String?) = path?.let { if (it.startsWith("http") || serverUrl == null) it else serverUrl + it }
 }
 
 /** Which list the user watches, and where in it; the player zaps through the same list. */
@@ -52,20 +61,54 @@ fun App(store: ConnectionStore) {
     val connection by store.connection.collectAsState(initial = null)
     val lastChannel by store.lastChannel.collectAsState(initial = null)
     val uiMode by store.uiMode.collectAsState(initial = UiMode.AUTO)
+    // Wrapped, so "not loaded yet" differs from "not chosen yet".
+    val sourceMode by remember { store.sourceMode.map { listOf(it) } }.collectAsState(initial = null)
+    val localPlaylist by store.localPlaylist.collectAsState(initial = null)
+    var editLocal by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     val form = LocalForm.current
     val scope = rememberCoroutineScope()
     var watching by remember { mutableStateOf<Watching?>(null) }
     var route by remember { mutableStateOf(Route.Home) }
 
     Box(Modifier.fillMaxSize().background(Casa.bg)) {
+        val loaded = sourceMode ?: return@Box
+        // Devices paired before local mode existed have a server but no choice stored.
+        val mode = loaded.first() ?: if (connection != null) SourceMode.SERVER else null
         val current = connection
-        if (current == null) {
-            ConnectScreen(onConnected = { scope.launch { store.save(it) } })
-            return@Box
+        val local = localPlaylist
+        when {
+            mode == null -> {
+                WelcomeScreen(onChoose = { scope.launch { store.saveSourceMode(it) } })
+                return@Box
+            }
+            mode == SourceMode.SERVER && current == null -> {
+                ConnectScreen(
+                    onConnected = { scope.launch { store.save(it) } },
+                    onBack = { scope.launch { store.saveSourceMode(null) } },
+                )
+                return@Box
+            }
+            mode == SourceMode.LOCAL && (local == null || editLocal) -> {
+                LocalSetupScreen(
+                    initial = local,
+                    onSaved = {
+                        scope.launch { store.saveLocalPlaylist(it) }
+                        editLocal = false
+                    },
+                    onBack = { if (editLocal) editLocal = false else scope.launch { store.saveSourceMode(null) } },
+                )
+                return@Box
+            }
         }
-        val session = remember(current) {
-            Session(CasaZappApi(current.serverUrl, current.token), current.serverUrl, current.token)
+        val session = remember(mode, current, local) {
+            if (mode == SourceMode.LOCAL) {
+                Session(LocalSource(context.filesDir, local!!), null, null)
+            } else {
+                Session(CasaZappApi(current!!.serverUrl, current.token), current.serverUrl, current.token)
+            }
         }
+        DisposableEffect(session) { onDispose { session.api.close() } }
         val playing = watching
         if (playing != null) {
             PlayerScreen(
@@ -83,10 +126,15 @@ fun App(store: ConnectionStore) {
                 Route.Home -> HomeScreen(session, lastChannel, onWatch = { watching = it })
                 Route.Live -> LiveScreen(session, onWatch = { watching = it })
                 Route.Settings -> SettingsScreen(
-                    serverUrl = current.serverUrl,
+                    mode = mode!!,
+                    serverUrl = current?.serverUrl,
+                    localPlaylist = local,
                     uiMode = uiMode,
                     onUiMode = { scope.launch { store.saveUiMode(it) } },
                     onUnpair = { scope.launch { store.clear() } },
+                    onRefreshLocal = { (session.api as? LocalSource)?.refresh() },
+                    onEditLocal = { editLocal = true },
+                    onSwitchMode = { scope.launch { store.saveSourceMode(it) } },
                 )
             }
         }

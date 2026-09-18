@@ -58,7 +58,7 @@ private sealed interface Pairing {
  * on a signed-in device (Settings → Devices), and the TV collects its token.
  */
 @Composable
-fun ConnectScreen(onConnected: (Connection) -> Unit) {
+fun ConnectScreen(onConnected: (Connection) -> Unit, onBack: () -> Unit) {
     // Start typing after the scheme: that is where the address goes.
     var field by remember { mutableStateOf(TextFieldValue("https://", TextRange(8))) }
     val server = field.text.trim()
@@ -142,7 +142,7 @@ fun ConnectScreen(onConnected: (Connection) -> Unit) {
                     Modifier.focusRequester(button),
                     enabled = server.length > "https://".length,
                 ) { attempt++ }
-                Text(stringResource(R.string.local_mode), color = Casa.muted, fontSize = 14.sp)
+                CasaButton(stringResource(R.string.back), primary = false, onClick = onBack)
             }
         }
     }

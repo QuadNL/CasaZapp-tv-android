@@ -155,7 +155,7 @@ private fun hueOf(text: String) = text.fold(7) { h, c -> (h * 31 + c.code) % 360
 
 /** Channel logo with coloured initials underneath, like the web app: provider logos are often missing. */
 @Composable
-fun ChannelLogo(name: String, logoUrl: String?, token: String, size: Dp = 48.dp) {
+fun ChannelLogo(name: String, logoUrl: String?, token: String?, size: Dp = 48.dp) {
     val context = LocalContext.current
     val initials = name
         .replace(Regex("^[A-Z]{2,3}\\s*[|:]\\s*"), "")
@@ -177,7 +177,7 @@ fun ChannelLogo(name: String, logoUrl: String?, token: String, size: Dp = 48.dp)
             AsyncImage(
                 model = ImageRequest.Builder(context)
                     .data(logoUrl)
-                    .httpHeaders(NetworkHeaders.Builder().set("Authorization", "Bearer $token").build())
+                    .apply { if (token != null) httpHeaders(NetworkHeaders.Builder().set("Authorization", "Bearer $token").build()) }
                     .build(),
                 contentDescription = null,
                 // Like the web: once the logo is there it covers the initials, on the surface colour.

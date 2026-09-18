@@ -7,7 +7,6 @@
     <string name="waiting">Waiting for approval…</string>
     <string name="code_expired">The code has expired. Request a new one.</string>
     <string name="connect_failed">Cannot reach the server. Is the address right?</string>
-    <string name="local_mode">Use locally (without a server) — coming later</string>
     <string name="all_channels">All channels</string>
     <string name="loading">Loading…</string>
     <string name="now">Now</string>
@@ -42,4 +41,23 @@
     <string name="display_auto">Automatic</string>
     <string name="display_tv">TV</string>
     <string name="display_mobile">Mobile</string>
+    <string name="welcome_title">How do you want to use CasaZapp TV?</string>
+    <string name="mode_local">On this device</string>
+    <string name="mode_local_hint">Add an Xtream or M3U playlist here. No server needed; everything stays on this device.</string>
+    <string name="mode_server">Connect to a CasaZapp TV server</string>
+    <string name="mode_server_hint">Your playlists, favourites, own lists and guide come from your own server. Pair with a code.</string>
+    <string name="local_title">Playlist on this device</string>
+    <string name="local_hint">The details stay on this device; the password is stored encrypted.</string>
+    <string name="playlist_name">Name</string>
+    <string name="m3u_url">M3U URL</string>
+    <string name="username">Username</string>
+    <string name="password">Password</string>
+    <string name="local_save">Save and load</string>
+    <string name="local_failed">Loading failed. Are the address and details right?</string>
+    <string name="local_refreshed">%1$d channels loaded</string>
+    <string name="back">Back</string>
+    <string name="refresh">Refresh</string>
+    <string name="change_playlist">Change playlist</string>
+    <string name="switch_to_local">Use locally, without a server</string>
+    <string name="switch_to_server">Connect to a server</string>
 </resources>

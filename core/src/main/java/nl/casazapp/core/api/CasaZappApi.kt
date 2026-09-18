@@ -26,7 +26,7 @@ class ApiException(val status: HttpStatusCode) : Exception("HTTP ${status.value}
  * Talks to a CasaZapp TV server. Pairing works without a token; everything else uses the device
  * token the server handed out after a signed-in user approved the code.
  */
-class CasaZappApi(baseUrl: String, private val token: String? = null) {
+class CasaZappApi(baseUrl: String, private val token: String? = null) : TvSource {
     private val json = Json { ignoreUnknownKeys = true }
 
     private val client = HttpClient(OkHttp) {
@@ -62,24 +62,24 @@ class CasaZappApi(baseUrl: String, private val token: String? = null) {
             query()
         }.ok()
 
-    suspend fun playlists(): List<Playlist> = authed("api/playlists")
+    override suspend fun playlists(): List<Playlist> = authed("api/playlists")
 
-    suspend fun lists(): List<ChannelList> = authed("api/lists")
+    override suspend fun lists(): List<ChannelList> = authed("api/lists")
 
-    suspend fun categories(playlistId: Int): List<Category> =
+    override suspend fun categories(playlistId: Int): List<Category> =
         authed("api/playlists/$playlistId/categories") { parameter("type", "live") }
 
     /**
      * Visible channels, like the web app's Live TV: all of them, one category, the favourites, or
      * one of the user's own lists (in its own order).
      */
-    suspend fun channels(
+    override suspend fun channels(
         playlistId: Int,
-        listId: Int? = null,
-        categoryId: Int? = null,
-        favorites: Boolean = false,
-        limit: Int = 500,
-        offset: Int = 0,
+        listId: Int?,
+        categoryId: Int?,
+        favorites: Boolean,
+        limit: Int,
+        offset: Int,
     ): ChannelPage =
         authed("api/playlists/$playlistId/channels") {
             parameter("limit", limit)
@@ -89,12 +89,12 @@ class CasaZappApi(baseUrl: String, private val token: String? = null) {
             if (favorites) parameter("favorites", true)
         }
 
-    suspend fun channel(id: Int): ChannelDetail = authed("api/channels/$id")
+    override suspend fun channel(id: Int): ChannelDetail = authed("api/channels/$id")
 
     /** Every programme of one channel from now on, for the guide next to the picture. */
-    suspend fun guide(channelId: Int): List<Programme> = authed("api/epg/channel/$channelId")
+    override suspend fun guide(channelId: Int): List<Programme> = authed("api/epg/channel/$channelId")
 
-    suspend fun setFavorite(channelId: Int, favorite: Boolean) {
+    override suspend fun setFavorite(channelId: Int, favorite: Boolean) {
         val response = client.patch("api/channels/$channelId") {
             token?.let { bearerAuth(it) }
             contentType(ContentType.Application.Json)
@@ -103,12 +103,12 @@ class CasaZappApi(baseUrl: String, private val token: String? = null) {
         if (response.status.value !in 200..299) throw ApiException(response.status)
     }
 
-    suspend fun nowNext(channelIds: List<Int>): Map<String, NowNext> =
+    override suspend fun nowNext(channelIds: List<Int>): Map<String, NowNext> =
         if (channelIds.isEmpty()) emptyMap()
         else authed("api/epg/now-next") { parameter("channels", channelIds.take(200).joinToString(",")) }
 
     /** The provider URL itself: a native player streams directly, not through the server. */
-    suspend fun stream(channelId: Int): ChannelStream = authed("api/channels/$channelId/stream")
+    override suspend fun stream(channelId: Int): ChannelStream = authed("api/channels/$channelId/stream")
 
-    fun close() = client.close()
+    override fun close() = client.close()
 }
