@@ -27,6 +27,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.clickable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -104,6 +108,7 @@ fun PlayerScreen(
     var favorite by remember { mutableStateOf(channel.favorite) }
     var volume by remember { mutableFloatStateOf(1f) }
     var guideOpen by remember { mutableStateOf(false) }
+    val compact = LocalForm.current.compact
     val root = remember { FocusRequester() }
     val firstControl = remember { FocusRequester() }
 
@@ -163,11 +168,9 @@ fun PlayerScreen(
     LaunchedEffect(guideOpen) { if (!guideOpen) root.requestFocus() }
     BackHandler { if (guideOpen) guideOpen = false else onBack() }
 
-    Row(Modifier.fillMaxSize().background(Color.Black)) {
-        Box(
-            Modifier
-                .weight(1f)
-                .fillMaxHeight()
+    val stage: @Composable (Modifier) -> Unit = { size -> Box(
+            size
+                .clickable(interactionSource = null, indication = null) { if (osd) osd = false else showOsd() }
                 .focusRequester(root)
                 .focusable()
                 .onPreviewKeyEvent { event ->
@@ -221,7 +224,7 @@ fun PlayerScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    Box(Modifier.size(44.dp).background(Color.White.copy(alpha = 0.1f), CircleShape), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(44.dp).background(Color.White.copy(alpha = 0.1f), CircleShape).clickable(onClick = onBack), contentAlignment = Alignment.Center) {
                         Icon(Icons.back, Color.White)
                     }
                     Text(channel.name, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
@@ -232,14 +235,16 @@ fun PlayerScreen(
                     Modifier.align(Alignment.TopEnd).padding(top = 140.dp, end = 28.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    listOf(Icons.up, Icons.down).forEach {
+                    listOf(Icons.up to -1, Icons.down to 1).forEach { (icon, step) ->
                         Box(
                             Modifier
                                 .size(48.dp)
+                                .clip(CircleShape)
+                                .clickable { zap(step) }
                                 .background(Color.Black.copy(alpha = 0.4f), CircleShape)
                                 .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape),
                             contentAlignment = Alignment.Center,
-                        ) { Icon(it, Color.White) }
+                        ) { Icon(icon, Color.White) }
                     }
                 }
 
@@ -264,11 +269,29 @@ fun PlayerScreen(
                         player.volume = volume
                         showOsd()
                     },
+                    compact = compact,
                     modifier = Modifier.align(Alignment.BottomStart),
                 )
             }
-        }
+        } }
 
+    if (compact) {
+        // The guide is always there below the picture, like the web app on a phone.
+        Column(Modifier.fillMaxSize().background(Casa.bg).systemBarsPadding()) {
+            stage(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black))
+            GuidePanel(
+                session = session,
+                watching = watching,
+                onPick = { index -> onZap(index) },
+                compact = true,
+                modifier = Modifier.fillMaxWidth().weight(1f),
+            )
+        }
+        return
+    }
+
+    Row(Modifier.fillMaxSize().background(Color.Black)) {
+        stage(Modifier.weight(1f).fillMaxHeight())
         if (guideOpen) {
             GuidePanel(
                 session = session,
@@ -293,8 +316,27 @@ private fun Osd(
     onGuide: () -> Unit,
     onFavorite: () -> Unit,
     onMute: () -> Unit,
+    compact: Boolean,
     modifier: Modifier,
 ) {
+    if (compact) {
+        // A phone's picture is small: only the controls, the channel and what is on now.
+        Row(
+            modifier
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000))))
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("$number  ${channel.name}", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                guide?.now?.let { Text(it.title, color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            }
+            OsdButton(if (favorite) Icons.starFilled else Icons.star, if (favorite) Casa.accent else Color.White, Modifier, onFavorite)
+            OsdButton(if (muted) Icons.muted else Icons.volume, Color.White, Modifier, onMute)
+        }
+        return
+    }
     Column(
         modifier
             .fillMaxWidth()
@@ -367,7 +409,7 @@ private fun GuideLine(label: String, programme: Programme?, strong: Boolean) {
  * its guide while the picture keeps playing; OK again switches to it.
  */
 @Composable
-private fun GuidePanel(session: Session, watching: Watching, onPick: (Int) -> Unit, modifier: Modifier) {
+private fun GuidePanel(session: Session, watching: Watching, onPick: (Int) -> Unit, modifier: Modifier, compact: Boolean = false) {
     val channels = watching.channels
     var selected by remember { mutableStateOf(watching.index) }
     var programmes by remember { mutableStateOf<List<Programme>?>(null) }
@@ -395,7 +437,7 @@ private fun GuidePanel(session: Session, watching: Watching, onPick: (Int) -> Un
             )
         }
         Row(Modifier.fillMaxSize()) {
-            LazyColumn(Modifier.width(250.dp).fillMaxHeight(), state = listState) {
+            LazyColumn((if (compact) Modifier.fillMaxWidth(0.55f) else Modifier.width(250.dp)).fillMaxHeight(), state = listState) {
                 itemsIndexed(channels, key = { _, c -> c.id }) { index, c ->
                     val isPlaying = index == watching.index
                     Row(

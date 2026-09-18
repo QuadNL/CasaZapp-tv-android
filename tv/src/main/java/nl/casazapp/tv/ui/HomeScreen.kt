@@ -74,6 +74,7 @@ fun HomeScreen(session: Session, lastChannelId: Int?, onWatch: (Watching) -> Uni
         }
     }
 
+    val compact = LocalForm.current.compact
     val hour = LocalTime.now().hour
     val greeting = when {
         hour < 6 -> R.string.greeting_night
@@ -82,15 +83,14 @@ fun HomeScreen(session: Session, lastChannelId: Int?, onWatch: (Watching) -> Uni
         else -> R.string.greeting_evening
     }
 
-    Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-        Text(stringResource(greeting), color = Casa.text, fontSize = 32.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
+    Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(if (compact) 18.dp else 28.dp)) {
+        Text(stringResource(greeting), color = Casa.text, fontSize = if (compact) 26.sp else 32.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
 
         // Continue watching
-        Row(horizontalArrangement = Arrangement.spacedBy(32.dp), verticalAlignment = Alignment.CenterVertically) {
+        val hero: @Composable (Modifier) -> Unit = { size ->
             val current = last
             Box(
-                Modifier
-                    .width(420.dp)
+                size
                     .aspectRatio(16f / 9f)
                     .background(
                         Brush.linearGradient(listOf(Color(0xFF1E3A5F), Color(0xFF05070A))),
@@ -106,18 +106,30 @@ fun HomeScreen(session: Session, lastChannelId: Int?, onWatch: (Watching) -> Uni
             ) {
                 if (current != null) ChannelLogo(current.name, session.logo(current.logo), session.token, 96.dp)
             }
+        }
+        val info: @Composable () -> Unit = {
+            val current = last
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.continue_watching).uppercase(), color = Casa.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 if (current == null) {
                     Text(stringResource(R.string.nothing_yet), color = Casa.muted, fontSize = 18.sp)
                 } else {
-                    Text(current.name, color = Casa.text, fontSize = 30.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
+                    Text(current.name, color = Casa.text, fontSize = if (compact) 22.sp else 30.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
                     current.categoryName?.let { Text(it, color = Casa.muted, fontSize = 16.sp) }
                     guide[current.id.toString()]?.now?.let { now ->
                         Text("${now.title} · ${time(now.start)}–${time(now.stop)}", color = Casa.text, fontSize = 17.sp)
                         ProgressBar(progressOf(now), Modifier.width(320.dp))
                     }
                 }
+            }
+        }
+        if (compact) {
+            hero(Modifier.fillMaxWidth())
+            info()
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(32.dp), verticalAlignment = Alignment.CenterVertically) {
+                hero(Modifier.width(420.dp))
+                info()
             }
         }
 
@@ -145,7 +157,7 @@ private fun ChannelRow(session: Session, channels: List<Channel>, guide: Map<Str
     LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
         itemsIndexed(channels, key = { _, c -> c.id }) { index, channel ->
             Column(
-                Modifier.width(220.dp).focusRing { onPick(index) }.padding(8.dp),
+                Modifier.width(if (LocalForm.current.compact) 150.dp else 220.dp).focusRing { onPick(index) }.padding(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Box(

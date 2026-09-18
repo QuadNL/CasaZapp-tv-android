@@ -33,6 +33,8 @@ import kotlinx.coroutines.launch
 import nl.casazapp.core.api.CasaZappApi
 import nl.casazapp.core.api.Channel
 import nl.casazapp.core.store.ConnectionStore
+import nl.casazapp.core.store.UiMode
+import androidx.compose.foundation.layout.systemBarsPadding
 import nl.casazapp.tv.R
 
 /** Everything the screens need to talk to the server and load logos. */
@@ -49,6 +51,8 @@ private enum class Route { Home, Live, Settings }
 fun App(store: ConnectionStore) {
     val connection by store.connection.collectAsState(initial = null)
     val lastChannel by store.lastChannel.collectAsState(initial = null)
+    val uiMode by store.uiMode.collectAsState(initial = UiMode.AUTO)
+    val form = LocalForm.current
     val scope = rememberCoroutineScope()
     var watching by remember { mutableStateOf<Watching?>(null) }
     var route by remember { mutableStateOf(Route.Home) }
@@ -74,17 +78,52 @@ fun App(store: ConnectionStore) {
             return@Box
         }
 
-        Row(Modifier.fillMaxSize()) {
-            NavRail(route) { route = it }
-            Box(Modifier.weight(1f).fillMaxHeight().padding(horizontal = 48.dp, vertical = 36.dp)) {
-                when (route) {
-                    Route.Home -> HomeScreen(session, lastChannel, onWatch = { watching = it })
-                    Route.Live -> LiveScreen(session, onWatch = { watching = it })
-                    Route.Settings -> SettingsScreen(
-                        serverUrl = current.serverUrl,
-                        onUnpair = { scope.launch { store.clear() } },
-                    )
-                }
+        val screen: @Composable () -> Unit = {
+            when (route) {
+                Route.Home -> HomeScreen(session, lastChannel, onWatch = { watching = it })
+                Route.Live -> LiveScreen(session, onWatch = { watching = it })
+                Route.Settings -> SettingsScreen(
+                    serverUrl = current.serverUrl,
+                    uiMode = uiMode,
+                    onUiMode = { scope.launch { store.saveUiMode(it) } },
+                    onUnpair = { scope.launch { store.clear() } },
+                )
+            }
+        }
+        if (form.compact) {
+            Column(Modifier.fillMaxSize().systemBarsPadding()) {
+                Box(Modifier.weight(1f).fillMaxWidth().padding(16.dp)) { screen() }
+                TabBar(route) { route = it }
+            }
+        } else {
+            Row(Modifier.fillMaxSize()) {
+                NavRail(route) { route = it }
+                val pad = if (form.tv) Modifier.padding(horizontal = 48.dp, vertical = 36.dp) else Modifier.padding(24.dp)
+                Box(Modifier.weight(1f).fillMaxHeight().systemBarsPadding().then(pad)) { screen() }
+            }
+        }
+    }
+}
+
+private val NAV = listOf(
+    Triple(Route.Home, Icons.home, R.string.nav_home),
+    Triple(Route.Live, Icons.tv, R.string.nav_live),
+    Triple(Route.Settings, Icons.settings, R.string.nav_settings),
+)
+
+/** The web app's mobile tab bar: icons with a small label, at the bottom. */
+@Composable
+private fun TabBar(route: Route, onRoute: (Route) -> Unit) {
+    Row(Modifier.fillMaxWidth().background(Casa.surface).padding(vertical = 6.dp)) {
+        NAV.forEach { (target, icon, label) ->
+            val active = route == target
+            Column(
+                Modifier.weight(1f).focusRing { onRoute(target) }.padding(vertical = 6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Icon(icon, tint = if (active) Casa.accent else Casa.muted, size = 22.dp)
+                Text(stringResource(label), color = if (active) Casa.text else Casa.muted, fontSize = 11.sp)
             }
         }
     }
@@ -93,11 +132,7 @@ fun App(store: ConnectionStore) {
 /** The web app's desktop sidebar: brand on top, then the sections. */
 @Composable
 private fun NavRail(route: Route, onRoute: (Route) -> Unit) {
-    val items: List<Triple<Route, ImageVector, Int>> = listOf(
-        Triple(Route.Home, Icons.home, R.string.nav_home),
-        Triple(Route.Live, Icons.tv, R.string.nav_live),
-        Triple(Route.Settings, Icons.settings, R.string.nav_settings),
-    )
+    val items: List<Triple<Route, ImageVector, Int>> = NAV
     Column(
         Modifier.width(240.dp).fillMaxHeight().background(Casa.surface).padding(horizontal = 16.dp, vertical = 32.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),

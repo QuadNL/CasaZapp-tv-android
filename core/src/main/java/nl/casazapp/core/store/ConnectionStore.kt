@@ -15,6 +15,10 @@ private val Context.dataStore by preferencesDataStore("connection")
 private val SERVER = stringPreferencesKey("server_url")
 private val TOKEN = stringPreferencesKey("device_token")
 private val LAST_CHANNEL = intPreferencesKey("last_channel")
+private val UI_MODE = stringPreferencesKey("ui_mode")
+
+/** How the app lays itself out; `AUTO` asks the system whether this is a television. */
+enum class UiMode { AUTO, TV, MOBILE }
 
 class ConnectionStore(private val context: Context) {
     val connection: Flow<Connection?> = context.dataStore.data.map { prefs ->
@@ -36,7 +40,20 @@ class ConnectionStore(private val context: Context) {
         context.dataStore.edit { it[LAST_CHANNEL] = id }
     }
 
+    val uiMode: Flow<UiMode> = context.dataStore.data.map { prefs ->
+        prefs[UI_MODE]?.let { runCatching { UiMode.valueOf(it) }.getOrNull() } ?: UiMode.AUTO
+    }
+
+    suspend fun saveUiMode(mode: UiMode) {
+        context.dataStore.edit { it[UI_MODE] = mode.name }
+    }
+
+    /** Forgets the server; device preferences such as the display mode stay. */
     suspend fun clear() {
-        context.dataStore.edit { it.clear() }
+        context.dataStore.edit {
+            it.remove(SERVER)
+            it.remove(TOKEN)
+            it.remove(LAST_CHANNEL)
+        }
     }
 }

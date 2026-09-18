@@ -40,7 +40,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.Button
 import androidx.tv.material3.Text
 import kotlinx.coroutines.delay
 import nl.casazapp.core.api.CasaZappApi
@@ -85,6 +84,7 @@ fun ConnectScreen(onConnected: (Connection) -> Unit) {
             }
             pairing = Pairing.Expired
         } catch (e: Exception) {
+            android.util.Log.w("CasaZapp", "Pairing failed", e)
             pairing = if (pairing is Pairing.Waiting) Pairing.Expired else Pairing.Failed
         } finally {
             api.close()
@@ -137,13 +137,11 @@ fun ConnectScreen(onConnected: (Connection) -> Unit) {
                 )
                 if (p is Pairing.Expired) Text(stringResource(R.string.code_expired), color = Casa.live)
                 if (p is Pairing.Failed) Text(stringResource(R.string.connect_failed), color = Casa.live)
-                Button(
-                    onClick = { attempt++ },
+                CasaButton(
+                    stringResource(R.string.request_code),
+                    Modifier.focusRequester(button),
                     enabled = server.length > "https://".length,
-                    modifier = Modifier.focusRequester(button),
-                ) {
-                    Text(stringResource(R.string.request_code))
-                }
+                ) { attempt++ }
                 Text(stringResource(R.string.local_mode), color = Casa.muted, fontSize = 14.sp)
             }
         }

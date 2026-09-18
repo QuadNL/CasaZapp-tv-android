@@ -38,4 +38,9 @@
     <string name="player_hint">↑/↓ zappen · OK info · → gids · Terug sluiten</string>
     <string name="server">Server</string>
     <string name="version">Versie</string>
+    <string name="display">Weergave</string>
+    <string name="display_hint">Automatisch kiest tv op een televisie en mobiel op een telefoon of tablet.</string>
+    <string name="display_auto">Automatisch</string>
+    <string name="display_tv">Tv</string>
+    <string name="display_mobile">Mobiel</string>
 </resources>

@@ -37,4 +37,9 @@
     <string name="player_hint">↑/↓ zap · OK info · → guide · Back close</string>
     <string name="server">Server</string>
     <string name="version">Version</string>
+    <string name="display">Display</string>
+    <string name="display_hint">Automatic picks TV on a television and mobile on a phone or tablet.</string>
+    <string name="display_auto">Automatic</string>
+    <string name="display_tv">TV</string>
+    <string name="display_mobile">Mobile</string>
 </resources>

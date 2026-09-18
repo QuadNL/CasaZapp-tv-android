@@ -112,6 +112,27 @@ fun Modifier.focusRing(
         .clickable(onClick = onClick)
 }
 
+/** The web app's buttons: accent (primary) or outlined. Works with the remote and with touch. */
+@Composable
+fun CasaButton(
+    label: String,
+    modifier: Modifier = Modifier,
+    primary: Boolean = true,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(10.dp)
+    Box(
+        modifier
+            .focusRing(shape) { if (enabled) onClick() }
+            .background(if (primary) Casa.accent.copy(alpha = if (enabled) 1f else 0.4f) else Color.Transparent, shape)
+            .border(1.dp, if (primary) Color.Transparent else Casa.line, shape)
+            .padding(horizontal = 20.dp, vertical = 11.dp),
+    ) {
+        Text(label, color = if (primary) Casa.accentInk else Casa.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
 @Composable
 fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(
