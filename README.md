@@ -50,6 +50,15 @@ De APK staat daarna in `tv/build/outputs/apk/debug/tv-debug.apk`.
 3. Open **CasaZapp TV** op de tv, vul het adres van je server in (bijv. `https://casazapp.jouwdomein.nl`) en kies **Koppelcode aanvragen**.
 4. Open de webapp op je telefoon of pc → **Instellingen → Apparaten**, vul de code in en kies **Koppelen**. De tv gaat vanzelf verder.
 
+## Releases en updates
+
+- Elke push naar `main` is een **build**: de workflow `Android` bouwt een ondertekende APK en maakt een GitHub-release `build-N` met `casazapp-tv.apk`. N is het runnummer en tegelijk de `versionCode`; er zijn (nog) geen versienummers.
+- De app kijkt bij het starten, en via *Instellingen → Controleren op updates*, naar de laatste release. Is die nieuwer, dan staat er een melding met **Bijwerken**: de app downloadt de APK en Android vraagt om bevestiging. Dit staat los van de server: de app kan nieuwer zijn dan je Docker-image.
+- Ondertekenen gebeurt met één vaste sleutel. Zonder die sleutel kan een nieuwe build niet over de oude heen worden geïnstalleerd. De workflow leest hem uit twee repository-secrets:
+  - `ANDROID_KEYSTORE`: de keystore in base64
+  - `ANDROID_KEYSTORE_PASSWORD`: het wachtwoord
+- Bewaar de keystore ook ergens veilig buiten GitHub.
+
 ## Werkafspraken
 
 Zelfde als de hoofdrepo: code, commentaar en commits in het Engels, documentatie en issues in het Nederlands, de app zelf in NL en EN.

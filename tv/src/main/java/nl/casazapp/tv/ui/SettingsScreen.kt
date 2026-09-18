@@ -13,6 +13,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -36,8 +42,11 @@ fun SettingsScreen(
     onUiMode: (UiMode) -> Unit,
     onUnpair: () -> Unit,
     onSwitchMode: (SourceMode) -> Unit,
+    onCheckUpdate: suspend () -> Boolean,
 ) {
     val compact = LocalForm.current.compact
+    val scope = rememberCoroutineScope()
+    var checked by remember { mutableStateOf<Boolean?>(null) }
     Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(stringResource(R.string.nav_settings), color = Casa.text, fontSize = if (compact) 24.sp else 32.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
 
@@ -78,7 +87,21 @@ fun SettingsScreen(
             }
         }
 
-        Text("${stringResource(R.string.version)} ${BuildConfig.VERSION_NAME}", color = Casa.muted, fontSize = 13.sp)
+        Section {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("${stringResource(R.string.version)}: ${BuildConfig.VERSION_NAME}", color = Casa.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                    when (checked) {
+                        true -> Text(stringResource(R.string.update_found), color = Casa.accent, fontSize = 14.sp)
+                        false -> Text(stringResource(R.string.update_none), color = Casa.muted, fontSize = 14.sp)
+                        null -> {}
+                    }
+                }
+                CasaButton(stringResource(R.string.update_check), primary = false) {
+                    scope.launch { checked = onCheckUpdate() }
+                }
+            }
+        }
     }
 }
 

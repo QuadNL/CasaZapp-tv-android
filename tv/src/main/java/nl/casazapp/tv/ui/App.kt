@@ -34,6 +34,8 @@ import nl.casazapp.core.api.CasaZappApi
 import nl.casazapp.core.api.Channel
 import nl.casazapp.core.store.ConnectionStore
 import nl.casazapp.core.store.UiMode
+import nl.casazapp.tv.update.Updater
+import androidx.compose.runtime.LaunchedEffect
 import nl.casazapp.core.store.SourceMode
 import nl.casazapp.core.api.TvSource
 import nl.casazapp.core.local.LocalSource
@@ -66,6 +68,8 @@ fun App(store: ConnectionStore) {
     val localPlaylist by store.localPlaylist.collectAsState(initial = null)
     val locale by store.locale.collectAsState(initial = null)
     var editLocal by remember { mutableStateOf(false) }
+    var update by remember { mutableStateOf<Updater.Release?>(null) }
+    LaunchedEffect(Unit) { update = Updater.newer() }
     val context = LocalContext.current
     val form = LocalForm.current
     val scope = rememberCoroutineScope()
@@ -122,7 +126,8 @@ fun App(store: ConnectionStore) {
             return@Box
         }
 
-        val screen: @Composable () -> Unit = {
+        val screen: @Composable () -> Unit = { Column {
+            update?.let { UpdateBanner(it, Modifier.padding(bottom = 16.dp)) }
             when (route) {
                 Route.Home -> HomeScreen(session, lastChannel, onWatch = { watching = it })
                 Route.Live -> LiveScreen(session, onWatch = { watching = it })
@@ -136,9 +141,10 @@ fun App(store: ConnectionStore) {
                     onUiMode = { scope.launch { store.saveUiMode(it) } },
                     onUnpair = { scope.launch { store.clear() } },
                     onSwitchMode = { scope.launch { store.saveSourceMode(it) } },
+                    onCheckUpdate = { Updater.newer().also { update = it } != null },
                 )
             }
-        }
+        } }
         if (form.compact) {
             Column(Modifier.fillMaxSize().systemBarsPadding()) {
                 Box(Modifier.weight(1f).fillMaxWidth().padding(16.dp)) { screen() }

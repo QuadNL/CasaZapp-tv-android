@@ -11,14 +11,28 @@ android {
         applicationId = "nl.casazapp.tv"
         minSdk = 23
         targetSdk = 36
-        // versionCode must only go up, otherwise Android refuses the update.
-        versionCode = 100
-        versionName = "0.1.0"
+        // The CI run number: it only goes up, which Android requires for an update. Local builds are 1.
+        versionCode = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1
+        versionName = "build $versionCode"
     }
 
+    // Releases are signed in CI with the key from the repository secrets; without it, release builds
+    // stay unsigned. Every update must carry the same signature, so the key never changes.
+    val keystore = System.getenv("KEYSTORE_FILE")
+    signingConfigs {
+        if (keystore != null) {
+            create("release") {
+                storeFile = file(keystore)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = "casazapp"
+                keyPassword = System.getenv("KEYSTORE_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release")
         }
     }
     compileOptions {

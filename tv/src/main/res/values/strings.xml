@@ -69,4 +69,12 @@
     <string name="playlists_local_hint">Deze playlist staat op dit apparaat.</string>
     <string name="timeline">Tijdlijn</string>
     <string name="list">Lijst</string>
+    <string name="update_available">Nieuwe versie: build %1$d</string>
+    <string name="update_hint">Downloaden en installeren; Android vraagt om bevestiging.</string>
+    <string name="update_downloading">Downloaden… %1$d%%</string>
+    <string name="update_failed">Bijwerken mislukt. Probeer het later opnieuw.</string>
+    <string name="update_install">Bijwerken</string>
+    <string name="update_check">Controleren op updates</string>
+    <string name="update_found">Er is een nieuwe versie; zie de melding bovenaan.</string>
+    <string name="update_none">Je hebt de nieuwste versie.</string>
 </resources>
