@@ -13,7 +13,8 @@ android {
         targetSdk = 36
         // The CI run number: it only goes up, which Android requires for an update. Local builds are 1.
         versionCode = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1
-        versionName = "build $versionCode"
+        // Shown as date-run, e.g. 260918-7; the run number alone decides what is newer.
+        versionName = "${System.getenv("BUILD_DATE") ?: "dev"}-$versionCode"
     }
 
     // Releases are signed in CI with the key from the repository secrets; without it, release builds

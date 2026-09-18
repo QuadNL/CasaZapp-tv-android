@@ -68,7 +68,7 @@
     <string name="playlists_local_hint">This playlist lives on this device.</string>
     <string name="timeline">Timeline</string>
     <string name="list">List</string>
-    <string name="update_available">New version: build %1$d</string>
+    <string name="update_available">New version: %1$s</string>
     <string name="update_hint">Download and install; Android asks you to confirm.</string>
     <string name="update_downloading">Downloading… %1$d%%</string>
     <string name="update_failed">Update failed. Try again later.</string>

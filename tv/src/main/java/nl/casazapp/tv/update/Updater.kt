@@ -19,24 +19,26 @@ import nl.casazapp.tv.BuildConfig
 
 /**
  * Updates the app from the GitHub releases of CasaZapp-tv-android, independent of the server:
- * each release is tagged `build-N`, with N the version code. Android asks the user to confirm.
+ * each release is tagged date-run (e.g. `260918-7`); the run number is the version code.
  */
 object Updater {
     private const val LATEST = "https://api.github.com/repos/QuadNL/CasaZapp-tv-android/releases/latest"
 
-    data class Release(val build: Int, val apkUrl: String)
+    data class Release(val build: Int, val name: String, val apkUrl: String)
 
     /** The latest release when it is newer than this app; null when up to date or unreachable. */
     suspend fun newer(): Release? = withContext(Dispatchers.IO) {
         runCatching {
             val body = open(LATEST).inputStream.bufferedReader().use { it.readText() }
             val release = Json.parseToJsonElement(body).jsonObject
-            val build = release["tag_name"]!!.jsonPrimitive.content.removePrefix("build-").toInt()
+            // Tags are date-run (260918-7) or, before that, build-6: the run number decides.
+            val tag = release["tag_name"]!!.jsonPrimitive.content
+            val build = tag.substringAfterLast('-').toInt()
             val apk = release["assets"]!!.jsonArray
                 .map { it.jsonObject }
                 .first { it["name"]!!.jsonPrimitive.content.endsWith(".apk") }["browser_download_url"]!!
                 .jsonPrimitive.content
-            Release(build, apk)
+            Release(build, tag.removePrefix("build-"), apk)
         }.getOrNull()?.takeIf { it.build > BuildConfig.VERSION_CODE }
     }
 
@@ -81,6 +83,19 @@ object Updater {
             val result = PendingIntent.getBroadcast(context, id, Intent(context, InstallResult::class.java), flags)
             session.commit(result.intentSender)
         }
+    }
+}
+
+/**
+ * After an update Android stops the app; this starts it again, so the user lands back in it.
+ * Android may refuse to start an activity from the background; then the app simply stays closed.
+ */
+class Relaunch : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
+        context.packageManager.getLaunchIntentForPackage(context.packageName)
+            ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ?.let { runCatching { context.startActivity(it) } }
     }
 }
 

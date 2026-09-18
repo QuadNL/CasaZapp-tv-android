@@ -35,6 +35,8 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
+      - name: Build name
+        run: echo "BUILD_DATE=$(TZ=Europe/Amsterdam date +%y%m%d)" >> "$GITHUB_ENV"
       - name: Signing key
         env:
           ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
@@ -53,6 +55,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp tv/build/outputs/apk/release/tv-release.apk casazapp-tv.apk
-          gh release create "build-$BUILD_NUMBER" casazapp-tv.apk \
-            --title "Build $BUILD_NUMBER" \
+          gh release create "$BUILD_DATE-$BUILD_NUMBER" casazapp-tv.apk \
+            --title "$BUILD_DATE-$BUILD_NUMBER" \
             --notes "$(git log -1 --pretty=%s)"

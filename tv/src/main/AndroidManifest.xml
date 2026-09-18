@@ -31,6 +31,11 @@
             </intent-filter>
         </activity>
         <receiver android:name=".update.InstallResult" android:exported="false" />
+        <receiver android:name=".update.Relaunch" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

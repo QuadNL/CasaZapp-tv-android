@@ -45,7 +45,7 @@ fun UpdateBanner(release: Updater.Release, modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Column(Modifier.weight(1f)) {
-            Text(stringResource(R.string.update_available, release.build), color = Casa.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.update_available, release.name), color = Casa.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             val p = progress
             Text(
                 when {

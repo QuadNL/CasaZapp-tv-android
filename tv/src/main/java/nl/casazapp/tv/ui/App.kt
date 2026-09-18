@@ -125,6 +125,7 @@ fun App(store: ConnectionStore) {
                 onZap = { watching = playing.copy(index = it) },
                 onPlaying = { scope.launch { store.saveLastChannel(it) } },
                 onBack = { watching = null },
+                onSwitch = { watching = it },
             )
             return@Box
         }

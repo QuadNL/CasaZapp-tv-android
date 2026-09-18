@@ -97,7 +97,8 @@ import nl.casazapp.core.api.NowNext
 import nl.casazapp.core.api.Programme
 import nl.casazapp.tv.R
 
-private const val OSD_MS = 5_000L
+/** How long the OSD stays after the last key or tap. */
+private const val OSD_MS = 8_000L
 
 /**
  * The web player. The picture plays straight from the provider; the server only hands out the URL.
@@ -114,6 +115,8 @@ fun PlayerScreen(
     onZap: (Int) -> Unit,
     onPlaying: (Int) -> Unit,
     onBack: () -> Unit,
+    /** A channel picked from another list in the guide: the player zaps through that list from then on. */
+    onSwitch: (Watching) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -193,18 +196,6 @@ fun PlayerScreen(
     LaunchedEffect(guideOpen) { if (!guideOpen) runCatching { root.requestFocus() } }
     BackHandler { if (guideOpen) guideOpen = false else onBack() }
 
-    // On a TV the remote sets the volume; the bar only shows it (and mute) like the TV does.
-    val audio = remember(context) { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
-    var tvVolume by remember { mutableFloatStateOf(1f) }
-    LaunchedEffect(tvLook, osd) {
-        while (tvLook && osd) {
-            val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
-            val muted = audio.isStreamMute(AudioManager.STREAM_MUSIC)
-            tvVolume = if (muted) 0f else audio.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / max
-            delay(400)
-        }
-    }
-
     // Phones and tablets may turn the screen from the player; leaving it gives the choice back to the sensor.
     val activity = remember(context) { context.findActivity() }
     DisposableEffect(tvLook) {
@@ -228,7 +219,7 @@ fun PlayerScreen(
             guide = guide,
             session = session,
             favorite = favorite,
-            volume = if (tvLook) tvVolume else volume,
+            volume = volume,
             firstControl = firstControl,
             overlay = overlay,
             onGuide = { guideOpen = !guideOpen; showOsd() },
@@ -252,7 +243,8 @@ fun PlayerScreen(
     val stage: @Composable (Modifier) -> Unit = { size -> Box(
             size
                 .background(Color.Black)
-                .clickable(interactionSource = null, indication = null) { if (osd) hideOsd() else showOsd() }
+                // Touch only: on a TV, clickable would treat OK's key-up as a second press and hide the OSD again.
+                .then(if (tvLook) Modifier else Modifier.clickable(interactionSource = null, indication = null) { if (osd) hideOsd() else showOsd() })
                 .pointerInput(tvLook) {
                     if (tvLook) return@pointerInput
                     // Like the web: swipe up for the guide, down to send it away; zapping is on the arrows.
@@ -266,7 +258,11 @@ fun PlayerScreen(
                 .focusRequester(root)
                 .focusable()
                 .onPreviewKeyEvent { event ->
-                    if (event.type != KeyEventType.KeyDown || guideOpen) return@onPreviewKeyEvent false
+                    if (guideOpen) return@onPreviewKeyEvent false
+                    val ok = event.key.nativeKeyCode.let {
+                        it == AndroidKeyEvent.KEYCODE_DPAD_CENTER || it == AndroidKeyEvent.KEYCODE_ENTER
+                    }
+                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent ok
                     when (event.key.nativeKeyCode) {
                         AndroidKeyEvent.KEYCODE_DPAD_UP, AndroidKeyEvent.KEYCODE_CHANNEL_UP -> zap(-1)
                         AndroidKeyEvent.KEYCODE_CHANNEL_DOWN -> zap(1)
@@ -285,14 +281,37 @@ fun PlayerScreen(
                     true
                 },
         ) {
-            // A phone held upright: the picture in the middle, the OSD right below it instead of at the screen's edge.
-            val below = compact && guideShown == 0f
-            Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
-                AndroidView(
-                    factory = { ctx -> PlayerView(ctx).apply { useController = false; this.player = player } },
-                    modifier = if (below) Modifier.fillMaxWidth().aspectRatio(16f / 9f) else Modifier.fillMaxSize(),
-                )
-                if (below && osd) osdPanel(Modifier, false)
+            // A phone held upright: the OSD lives inside the picture, which sits in the middle of the screen.
+            val inPicture = compact
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Box(if (inPicture) Modifier.fillMaxWidth().aspectRatio(16f / 9f) else Modifier.fillMaxSize()) {
+                    AndroidView(
+                        factory = { ctx -> PlayerView(ctx).apply { useController = false; this.player = player } },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    if (inPicture && osd) {
+                        PictureOsd(
+                            number = watching.index + 1,
+                            channel = channel,
+                            guide = guide,
+                            session = session,
+                            favorite = favorite,
+                            volume = volume,
+                            onFavorite = {
+                                favorite = !favorite
+                                val value = favorite
+                                scope.launch { runCatching { session.api.setFavorite(channel.id, value) } }
+                                showOsd()
+                            },
+                            onVolume = { v ->
+                                volume = v
+                                player.volume = v
+                                showOsd()
+                            },
+                            onRotate = ::rotate,
+                        )
+                    }
+                }
             }
 
             if (failed) {
@@ -329,7 +348,7 @@ fun PlayerScreen(
                 }
 
                 // Zap arrows for touch; a remote zaps with up and down.
-                if (!tvLook) {
+                if (!tvLook && !inPicture) {
                     Column(
                         Modifier.align(Alignment.CenterEnd).padding(end = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -348,38 +367,53 @@ fun PlayerScreen(
                     }
                 }
 
-                if (!below) osdPanel(Modifier.align(Alignment.BottomStart), true)
+                if (!inPicture) osdPanel(Modifier.align(Alignment.BottomStart), true)
             }
         } }
 
-    if (tvLook) {
-        // The TV guide: the picture shrinks to the top left, the channel beside it, the timeline below.
+    if (!compact) {
+        // The TV guide, also on a phone on its side and a tablet: the picture shrinks to the top left,
+        // the channel beside it, and below the timeline with the same chips as Live TV.
         BoxWithConstraints(Modifier.fillMaxSize().background(Casa.bg)) {
             val small = 0.3f
             val scale = 1f - (1f - small) * guideShown
-            val pad = 32.dp * guideShown
+            val pad = (if (tvLook) 32.dp else 12.dp) * guideShown
             val w = maxWidth * scale
             val h = maxHeight * scale
+            val fullWidth = maxWidth
+            val fullHeight = maxHeight
             if (guideShown > 0f) {
                 Column(
                     Modifier
                         .offset(x = w + pad * 2, y = pad)
-                        .width(maxWidth - w - pad * 3)
+                        .width(fullWidth - w - pad * 3)
                         .height(h)
                         .alpha(guideShown),
                     verticalArrangement = Arrangement.Center,
                 ) { ChannelInfo(watching.index + 1, channel, detail, guide, session) }
-                Box(
+                Column(
                     Modifier
                         .offset(x = pad, y = h + pad * 1.5f)
-                        .width(maxWidth - pad * 2)
-                        .height(maxHeight - h - pad * 2.5f)
+                        .width(fullWidth - pad * 2)
+                        .height(fullHeight - h - pad * 2.5f)
                         .alpha(guideShown),
                 ) {
                     if (guideOpen || guideShown > 0.5f) {
-                        LiveTimeline(session, channels, focusIndex = watching.index) { index ->
-                            guideOpen = false
-                            if (index != watching.index) onZap(index)
+                        val filter = rememberChannelFilter(session, channels, watching.label)
+                        val label = filter.label()
+                        FilterChips(filter, Modifier.padding(bottom = 10.dp))
+                        val list = filter.channels
+                        if (list == null) {
+                            Text(stringResource(R.string.loading), color = Casa.muted)
+                        } else {
+                            val here = list.indexOfFirst { it.id == channel.id }.takeIf { it >= 0 }
+                            LiveTimeline(session, list, focusIndex = here ?: 0) { index ->
+                                guideOpen = false
+                                when {
+                                    list === channels -> if (index != watching.index) onZap(index)
+                                    else -> onSwitch(Watching(list, index, label))
+                                }
+                            }
                         }
                     }
                 }
@@ -389,41 +423,20 @@ fun PlayerScreen(
         return
     }
 
-    if (compact) {
-        // A phone held upright: the guide slides in below the picture.
-        BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black).systemBarsPadding()) {
-            val guideHeight = maxHeight * 0.63f * guideShown
-            val stageHeight = maxHeight - guideHeight
-            Column {
-                stage(Modifier.fillMaxWidth().height(stageHeight))
-                if (guideShown > 0f) {
-                    GuidePanel(
-                        session = session,
-                        watching = watching,
-                        onPick = { index -> onZap(index) },
-                        onClose = { guideOpen = false },
-                        narrow = true,
-                        modifier = Modifier.fillMaxWidth().height(guideHeight),
-                    )
-                }
-            }
-        }
-        return
-    }
-
-    // A phone on its side or a tablet: the guide slides in on the right.
-    BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
-        val guideWidth = maxWidth * 0.42f * guideShown
-        val stageWidth = maxWidth - guideWidth
-        Row {
-            stage(Modifier.width(stageWidth).fillMaxHeight())
+    // A phone held upright: the guide slides in below the picture.
+    BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black).systemBarsPadding()) {
+        val guideHeight = maxHeight * 0.63f * guideShown
+        val stageHeight = maxHeight - guideHeight
+        Column {
+            stage(Modifier.fillMaxWidth().height(stageHeight))
             if (guideShown > 0f) {
                 GuidePanel(
                     session = session,
                     watching = watching,
                     onPick = { index -> onZap(index) },
                     onClose = { guideOpen = false },
-                    modifier = Modifier.width(guideWidth).fillMaxHeight().systemBarsPadding(),
+                    narrow = true,
+                    modifier = Modifier.fillMaxWidth().height(guideHeight),
                 )
             }
         }
@@ -504,7 +517,7 @@ private fun Osd(
             },
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            VolumeControl(volume, onVolume)
+            if (onVolume != null) VolumeControl(volume, onVolume)
             onRotate?.let { OsdButton(Icons.rotate, Color.White, Modifier, it) }
             OsdButton(if (favorite) Icons.starFilled else Icons.star, if (favorite) Casa.accent else Color.White, Modifier.focusRequester(firstControl), onFavorite)
             OsdButton(Icons.guide, Casa.accent, Modifier, onGuide)
@@ -526,6 +539,75 @@ private fun Osd(
         if (!sideBySide) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { controls() }
         ChannelInfo(number, channel, detail, guide, session, trailing = { if (sideBySide) controls() })
         if (tv) Text(stringResource(R.string.player_hint), color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+    }
+}
+
+/**
+ * The OSD inside the picture of a phone held upright: favourite in the top right corner; at the
+ * bottom the channel (its name cut off when long), what is on, and volume and rotate beside it.
+ */
+@Composable
+private fun PictureOsd(
+    number: Int,
+    channel: Channel,
+    guide: NowNext?,
+    session: Session,
+    favorite: Boolean,
+    volume: Float,
+    onFavorite: () -> Unit,
+    onVolume: (Float) -> Unit,
+    onRotate: () -> Unit,
+) {
+    var sliderOpen by remember { mutableStateOf(false) }
+    Box(Modifier.fillMaxSize()) {
+        Box(Modifier.align(Alignment.TopEnd).padding(6.dp)) {
+            OsdButton(if (favorite) Icons.starFilled else Icons.star, if (favorite) Casa.accent else Color.White, Modifier, onFavorite)
+        }
+        Column(
+            Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000))))
+                .padding(start = 12.dp, end = 4.dp, top = 24.dp, bottom = 6.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(number.toString(), color = Casa.accent, fontSize = 18.sp, fontFamily = CasaFonts.mono)
+                ChannelLogo(channel.name, session.logo(channel.logo), session.token, 30.dp)
+                Column(Modifier.weight(1f)) {
+                    Text(channel.name, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    guide?.now?.let { Text(it.title, color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                }
+                OsdButton(if (volume == 0f) Icons.muted else Icons.volume, Color.White, Modifier) { sliderOpen = !sliderOpen }
+                OsdButton(Icons.rotate, Color.White, Modifier, onRotate)
+            }
+            guide?.now?.let { ProgressBar(progressOf(it), Modifier.padding(top = 4.dp, end = 8.dp).fillMaxWidth()) }
+        }
+        if (sliderOpen) {
+            VerticalVolume(volume, onVolume, Modifier.align(Alignment.BottomEnd).padding(end = 50.dp, bottom = 58.dp))
+        }
+    }
+}
+
+/** A vertical volume bar that opens from the speaker icon; drag or tap along it. */
+@Composable
+private fun VerticalVolume(volume: Float, onChange: (Float) -> Unit, modifier: Modifier) {
+    var heightPx by remember { mutableFloatStateOf(1f) }
+    Box(
+        modifier
+            .width(36.dp)
+            .height(110.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.Black.copy(alpha = 0.7f))
+            .onSizeChanged { heightPx = it.height.toFloat().coerceAtLeast(1f) }
+            .pointerInput(Unit) { detectTapGestures { onChange((1f - it.y / heightPx).coerceIn(0f, 1f)) } }
+            .pointerInput(Unit) {
+                detectVerticalDragGestures { change, _ -> onChange((1f - change.position.y / heightPx).coerceIn(0f, 1f)) }
+            }
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        Box(Modifier.width(4.dp).fillMaxHeight().clip(RoundedCornerShape(2.dp)).background(Color.White.copy(alpha = 0.25f)))
+        Box(Modifier.width(4.dp).fillMaxHeight(volume).clip(RoundedCornerShape(2.dp)).background(Casa.accent))
     }
 }
 

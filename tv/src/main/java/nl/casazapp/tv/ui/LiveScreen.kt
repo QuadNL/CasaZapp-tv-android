@@ -35,96 +35,47 @@ import nl.casazapp.core.api.ChannelList
 import nl.casazapp.core.api.NowNext
 import nl.casazapp.tv.R
 
-/** What the chips at the top can select; the player zaps through the same selection. */
-sealed interface Filter {
-    data object All : Filter
-    data object Favorites : Filter
-    data class OwnList(val list: ChannelList) : Filter
-    data class InCategory(val category: Category) : Filter
-}
-
-/** Live TV like the web app: chips for your lists and categories, channels with now/next. */
+/** Live TV like the web app: chips for your lists and categories, channels as a timeline or a list. */
 @Composable
 fun LiveScreen(session: Session, onWatch: (Watching) -> Unit) {
-    val api = session.api
-    var playlistId by remember { mutableStateOf<Int?>(null) }
-    var lists by remember { mutableStateOf<List<ChannelList>>(emptyList()) }
-    var categories by remember { mutableStateOf<List<Category>>(emptyList()) }
-    var filter by remember { mutableStateOf<Filter>(Filter.All) }
-    var channels by remember { mutableStateOf<List<Channel>?>(null) }
-    var guide by remember { mutableStateOf<Map<String, NowNext>>(emptyMap()) }
-    var failed by remember { mutableStateOf(false) }
+    val state = rememberChannelFilter(session)
+    val form = LocalForm.current
     var timeline by rememberSaveable { mutableStateOf(true) }
-
-    LaunchedEffect(Unit) {
-        runCatching {
-            val id = api.playlists().firstOrNull()?.id
-            lists = api.lists()
-            // With a primary list the app shows own lists instead of the categories, like the web.
-            lists.firstOrNull { it.primary }?.let { filter = Filter.OwnList(it) }
-            if (id != null && lists.none { it.primary }) categories = api.categories(id)
-            playlistId = id
-        }.onFailure { failed = true }
-    }
-    LaunchedEffect(playlistId, filter) {
-        val id = playlistId ?: return@LaunchedEffect
-        channels = null
-        runCatching {
-            val f = filter
-            val page = api.channels(
-                id,
-                listId = (f as? Filter.OwnList)?.list?.id,
-                categoryId = (f as? Filter.InCategory)?.category?.id,
-                favorites = f is Filter.Favorites,
-            )
-            channels = page.items
-            guide = api.nowNext(page.items.map { it.id })
-        }.onFailure { failed = true }
-    }
-
-    val label = when (val f = filter) {
-        Filter.All -> stringResource(R.string.all)
-        Filter.Favorites -> stringResource(R.string.favorites)
-        is Filter.OwnList -> f.list.name
-        is Filter.InCategory -> f.category.name
+    val label = state.label()
+    val switch: @Composable () -> Unit = {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Chip(stringResource(R.string.timeline), timeline) { timeline = true }
+            Chip(stringResource(R.string.list), !timeline) { timeline = false }
+        }
     }
 
     Column {
-        Text(stringResource(R.string.nav_live), color = Casa.text, fontSize = if (LocalForm.current.compact) 24.sp else 32.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            channels?.let {
-                Text(stringResource(R.string.channel_count, it.size), color = Casa.muted, fontSize = 15.sp, modifier = Modifier.weight(1f))
+        if (form.phone && !form.compact) {
+            // A phone on its side has little height: title, switch and chips share one line.
+            Row(Modifier.padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.nav_live), color = Casa.text, fontSize = 20.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
+                FilterChips(state, Modifier.padding(start = 16.dp).weight(1f)) { item { switch() } }
             }
-            // Timeline or list, like the switch on the web.
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Chip(stringResource(R.string.timeline), timeline) { timeline = true }
-                Chip(stringResource(R.string.list), !timeline) { timeline = false }
-            }
-        }
-
-        LazyRow(Modifier.padding(vertical = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (lists.none { it.primary }) {
-                item { Chip(stringResource(R.string.all), filter == Filter.All) { filter = Filter.All } }
-            }
-            items(lists, key = { "l${it.id}" }) { l ->
-                Chip("★ ${l.name}", (filter as? Filter.OwnList)?.list?.id == l.id) { filter = Filter.OwnList(l) }
-            }
-            item { Chip(stringResource(R.string.favorites), filter == Filter.Favorites) { filter = Filter.Favorites } }
-            items(categories, key = { "c${it.id}" }) { c ->
-                Chip(c.name.ifEmpty { "—" }, (filter as? Filter.InCategory)?.category?.id == c.id) {
-                    filter = Filter.InCategory(c)
+        } else {
+            Text(stringResource(R.string.nav_live), color = Casa.text, fontSize = if (form.compact) 24.sp else 32.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                state.channels?.let {
+                    Text(stringResource(R.string.channel_count, it.size), color = Casa.muted, fontSize = 15.sp, modifier = Modifier.weight(1f))
                 }
+                // Timeline or list, like the switch on the web.
+                switch()
             }
+            FilterChips(state, Modifier.padding(vertical = 18.dp))
         }
 
-        val current = channels
+        val current = state.channels
         when {
-            failed -> Text(stringResource(R.string.connect_failed), color = Casa.live)
+            state.failed -> Text(stringResource(R.string.connect_failed), color = Casa.live)
             current == null -> Text(stringResource(R.string.loading), color = Casa.muted)
             timeline -> LiveTimeline(session, current) { index -> onWatch(Watching(current, index, label)) }
             else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 itemsIndexed(current, key = { _, c -> c.id }) { index, channel ->
-                    ChannelRow(index + 1, channel, guide[channel.id.toString()], session) {
+                    ChannelRow(index + 1, channel, state.guide[channel.id.toString()], session) {
                         onWatch(Watching(current, index, label))
                     }
                 }
