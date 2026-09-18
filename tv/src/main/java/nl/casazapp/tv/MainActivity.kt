@@ -97,15 +97,18 @@ private fun Localized(tag: String?, content: @Composable () -> Unit) {
 private fun FormScale(tv: Boolean, content: @Composable () -> Unit) {
     val width = LocalConfiguration.current.screenWidthDp
     val density = LocalDensity.current
-    val compact = !tv && width < COMPACT_WIDTH_DP
+    // A phone stays a phone when turned: same scale, judged by its short side.
+    val shortSide = LocalConfiguration.current.smallestScreenWidthDp
+    val phone = !tv && shortSide < COMPACT_WIDTH_DP
+    val compact = phone && width < COMPACT_WIDTH_DP
     val scaled = when {
         tv -> Density(density.density * width / DESIGN_WIDTH_DP, density.fontScale)
-        compact -> Density(density.density * minOf(1f, width / PHONE_DESIGN_WIDTH_DP), density.fontScale)
+        phone -> Density(density.density * minOf(1f, shortSide / PHONE_DESIGN_WIDTH_DP), density.fontScale)
         else -> density
     }
     CompositionLocalProvider(
         LocalDensity provides scaled,
-        LocalForm provides Form(tv = tv, compact = compact),
+        LocalForm provides Form(tv = tv, compact = compact, phone = phone),
     ) {
         ProvideTextStyle(TextStyle(fontFamily = CasaFonts.sans), content)
     }

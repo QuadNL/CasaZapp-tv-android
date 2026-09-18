@@ -27,6 +27,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
+import android.content.res.Configuration
+import android.content.pm.ActivityInfo
+import android.content.ContextWrapper
+import android.content.Context
+import android.app.Activity
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.aspectRatio
@@ -111,6 +123,7 @@ fun PlayerScreen(
     var volume by remember { mutableFloatStateOf(1f) }
     var guideOpen by remember { mutableStateOf(false) }
     val compact = LocalForm.current.compact
+    val tvLook = LocalForm.current.tv
     val root = remember { FocusRequester() }
     val firstControl = remember { FocusRequester() }
 
@@ -170,11 +183,27 @@ fun PlayerScreen(
     LaunchedEffect(guideOpen) { if (!guideOpen) root.requestFocus() }
     BackHandler { if (guideOpen) guideOpen = false else onBack() }
 
+    // Phones and tablets may turn the screen from the player; leaving it gives the choice back to the sensor.
+    val activity = remember(context) { context.findActivity() }
+    DisposableEffect(tvLook) {
+        onDispose { if (!tvLook) activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
+    }
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    fun rotate() {
+        activity?.requestedOrientation = if (landscape) {
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
+        showOsd()
+    }
+
     val stage: @Composable (Modifier) -> Unit = { size -> Box(
             size
                 .clickable(interactionSource = null, indication = null) { if (osd) osd = false else showOsd() }
-                .pointerInput(compact) {
-                    if (!compact) return@pointerInput
+                .pointerInput(tvLook) {
+                    if (tvLook) return@pointerInput
+                    // Like the web: swipe up for the guide, down to send it away; zapping is on the arrows.
                     var dy = 0f
                     detectVerticalDragGestures(
                         onDragStart = { dy = 0f },
@@ -213,49 +242,49 @@ fun PlayerScreen(
                 Text(
                     stringResource(R.string.play_failed),
                     color = Casa.text,
-                    fontSize = 18.sp,
+                    fontSize = 16.sp,
                     modifier = Modifier
                         .align(Alignment.TopCenter)
-                        .padding(top = 90.dp)
+                        .padding(top = 80.dp, start = 16.dp, end = 16.dp)
                         .background(Casa.surface, RoundedCornerShape(12.dp))
                         .border(1.dp, Casa.line, RoundedCornerShape(12.dp))
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
                 )
             }
 
-            // With the guide open the picture is small; its own information would only get in the way.
-            if (osd && (compact || !guideOpen)) {
+            // With the guide beside a TV picture, the picture's own information would only get in the way.
+            if (osd && (!tvLook || !guideOpen)) {
                 // Top bar: back and channel name.
                 Row(
                     Modifier
                         .align(Alignment.TopStart)
                         .fillMaxWidth()
                         .background(Brush.verticalGradient(listOf(Color(0xB3000000), Color.Transparent)))
-                        .padding(horizontal = 32.dp, vertical = 24.dp),
+                        .padding(horizontal = if (tvLook) 32.dp else 16.dp, vertical = if (tvLook) 24.dp else 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Box(Modifier.size(44.dp).background(Color.White.copy(alpha = 0.1f), CircleShape).clickable(onClick = onBack), contentAlignment = Alignment.Center) {
-                        Icon(Icons.back, Color.White)
+                    Box(Modifier.size(if (tvLook) 44.dp else 40.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.1f)).clickable(onClick = onBack), contentAlignment = Alignment.Center) {
+                        Icon(Icons.back, Color.White, if (tvLook) 24.dp else 20.dp)
                     }
-                    Text(channel.name, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Text(channel.name, color = Color.White, fontSize = if (tvLook) 18.sp else 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
 
-                // Zap arrows.
+                // Zap arrows, vertically centred on the right like the web player.
                 Column(
-                    Modifier.align(Alignment.TopEnd).padding(top = 140.dp, end = 28.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    Modifier.align(Alignment.CenterEnd).padding(end = if (tvLook) 28.dp else 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     listOf(Icons.up to -1, Icons.down to 1).forEach { (icon, step) ->
                         Box(
                             Modifier
-                                .size(48.dp)
+                                .size(if (tvLook) 48.dp else 40.dp)
                                 .clip(CircleShape)
                                 .clickable { zap(step) }
                                 .background(Color.Black.copy(alpha = 0.4f), CircleShape)
                                 .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape),
                             contentAlignment = Alignment.Center,
-                        ) { Icon(icon, Color.White) }
+                        ) { Icon(icon, Color.White, if (tvLook) 24.dp else 20.dp) }
                     }
                 }
 
@@ -266,28 +295,28 @@ fun PlayerScreen(
                     guide = guide,
                     session = session,
                     favorite = favorite,
-                    muted = volume == 0f,
+                    volume = volume,
                     firstControl = firstControl,
-                    onGuide = { guideOpen = !guideOpen },
+                    onGuide = { guideOpen = !guideOpen; showOsd() },
                     onFavorite = {
                         favorite = !favorite
                         val value = favorite
                         scope.launch { runCatching { session.api.setFavorite(channel.id, value) } }
                         showOsd()
                     },
-                    onMute = {
-                        volume = if (volume == 0f) 1f else 0f
-                        player.volume = volume
+                    onVolume = {
+                        volume = it
+                        player.volume = it
                         showOsd()
                     },
-                    compact = compact,
+                    onRotate = if (tvLook) null else ::rotate,
                     modifier = Modifier.align(Alignment.BottomStart),
                 )
             }
         } }
 
     if (compact) {
-        // Like the web on a phone: the picture fills the screen; the guide slides in below it.
+        // Like the web on a phone held upright: the picture fills the screen; the guide slides in below it.
         Column(Modifier.fillMaxSize().background(Color.Black).systemBarsPadding()) {
             stage(Modifier.fillMaxWidth().weight(1f))
             if (guideOpen) {
@@ -296,7 +325,7 @@ fun PlayerScreen(
                     watching = watching,
                     onPick = { index -> onZap(index) },
                     onClose = { guideOpen = false },
-                    compact = true,
+                    narrow = true,
                     modifier = Modifier.fillMaxWidth().weight(1.7f),
                 )
             }
@@ -310,13 +339,21 @@ fun PlayerScreen(
             GuidePanel(
                 session = session,
                 watching = watching,
-                onPick = { index -> guideOpen = false; onZap(index) },
-                modifier = Modifier.fillMaxHeight().width(560.dp),
+                onPick = { index -> if (tvLook) guideOpen = false; onZap(index) },
+                onClose = if (tvLook) null else ({ guideOpen = false }),
+                modifier = if (tvLook) Modifier.fillMaxHeight().width(560.dp) else Modifier.fillMaxHeight().weight(0.75f).systemBarsPadding(),
             )
         }
     }
 }
 
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
+/** The web player's on-screen display: controls, then the channel, then now and next. */
 @Composable
 private fun Osd(
     number: Int,
@@ -325,92 +362,124 @@ private fun Osd(
     guide: NowNext?,
     session: Session,
     favorite: Boolean,
-    muted: Boolean,
+    volume: Float,
     firstControl: FocusRequester,
     onGuide: () -> Unit,
     onFavorite: () -> Unit,
-    onMute: () -> Unit,
-    compact: Boolean,
+    onVolume: (Float) -> Unit,
+    onRotate: (() -> Unit)?,
     modifier: Modifier,
 ) {
-    if (compact) {
-        // A phone's picture is small: only the controls, the channel and what is on now.
-        Row(
-            modifier
-                .fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000))))
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text("$number  ${channel.name}", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                guide?.now?.let { Text(it.title, color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-            }
-            OsdButton(Icons.guide, Casa.accent, Modifier, onGuide)
-            OsdButton(if (favorite) Icons.starFilled else Icons.star, if (favorite) Casa.accent else Color.White, Modifier, onFavorite)
-            OsdButton(if (muted) Icons.muted else Icons.volume, Color.White, Modifier, onMute)
-        }
-        return
-    }
+    val tv = LocalForm.current.tv
     Column(
         modifier
             .fillMaxWidth()
             .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0x99000000), Color(0xE6000000))))
-            .padding(start = 48.dp, end = 48.dp, top = 80.dp, bottom = 36.dp),
+            .then(if (tv) Modifier.padding(start = 48.dp, end = 48.dp, top = 80.dp, bottom = 36.dp) else Modifier.padding(start = 20.dp, end = 12.dp, top = 48.dp, bottom = 16.dp)),
     ) {
-        // Controls above the channel information, like the web player.
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            VolumeControl(volume, onVolume)
+            onRotate?.let { OsdButton(Icons.rotate, Color.White, Modifier, it) }
             OsdButton(Icons.guide, Casa.accent, Modifier.focusRequester(firstControl), onGuide)
             OsdButton(if (favorite) Icons.starFilled else Icons.star, if (favorite) Casa.accent else Color.White, Modifier, onFavorite)
-            OsdButton(if (muted) Icons.muted else Icons.volume, Color.White, Modifier, onMute)
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-            Text(number.toString(), color = Casa.accent, fontSize = 40.sp, fontFamily = CasaFonts.mono)
-            ChannelLogo(channel.name, session.logo(channel.logo), session.token, 60.dp)
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(detail?.categoryName ?: "", color = Color.White.copy(alpha = 0.7f), fontSize = 15.sp)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(if (tv) 18.dp else 12.dp)) {
+            Text(number.toString(), color = Casa.accent, fontSize = if (tv) 40.sp else 26.sp, fontFamily = CasaFonts.mono)
+            ChannelLogo(channel.name, session.logo(channel.logo), session.token, if (tv) 60.dp else 44.dp)
+            Column(Modifier.weight(1f, fill = false)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(detail?.categoryName ?: "", color = Color.White.copy(alpha = 0.7f), fontSize = if (tv) 15.sp else 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     Text(
                         stringResource(R.string.live_badge),
                         color = Color.White,
-                        fontSize = 11.sp,
+                        fontSize = if (tv) 11.sp else 9.sp,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.background(Casa.live, RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
+                        modifier = Modifier.background(Casa.live, RoundedCornerShape(4.dp)).padding(horizontal = 5.dp, vertical = 1.dp),
                     )
                 }
-                Text(channel.name, color = Color.White, fontSize = 34.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
+                Text(channel.name, color = Color.White, fontSize = if (tv) 34.sp else 20.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        Spacer(Modifier.height(16.dp))
-        Column(Modifier.width(720.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Spacer(Modifier.height(if (tv) 16.dp else 10.dp))
+        Column((if (tv) Modifier.width(720.dp) else Modifier.fillMaxWidth()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             GuideLine(stringResource(R.string.now), guide?.now, strong = true)
-            guide?.now?.let { ProgressBar(progressOf(it), Modifier.padding(start = 64.dp).fillMaxWidth()) }
+            guide?.now?.let { ProgressBar(progressOf(it), Modifier.padding(start = if (tv) 64.dp else 48.dp).fillMaxWidth()) }
             GuideLine(stringResource(R.string.next), guide?.next, strong = false)
-            Text(stringResource(R.string.player_hint), color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
+            if (tv) Text(stringResource(R.string.player_hint), color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
         }
     }
 }
 
 @Composable
 private fun OsdButton(icon: ImageVector, tint: Color, modifier: Modifier, onClick: () -> Unit) {
+    val tv = LocalForm.current.tv
     Box(
-        modifier.padding(4.dp).focusRing(CircleShape, onClick = onClick).size(52.dp),
+        modifier.padding(2.dp).focusRing(CircleShape, onClick = onClick).size(if (tv) 52.dp else 42.dp),
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, tint, 28.dp) }
+    ) { Icon(icon, tint, if (tv) 28.dp else 22.dp) }
+}
+
+/**
+ * Mute button with a volume slider, like the web player. Drag or tap the bar; on a TV, left and
+ * right change it while it has focus.
+ */
+@Composable
+private fun VolumeControl(volume: Float, onChange: (Float) -> Unit) {
+    val tv = LocalForm.current.tv
+    var before by remember { mutableFloatStateOf(1f) }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        OsdButton(if (volume == 0f) Icons.muted else Icons.volume, Color.White, Modifier) {
+            if (volume == 0f) {
+                onChange(before.takeIf { it > 0f } ?: 1f)
+            } else {
+                before = volume
+                onChange(0f)
+            }
+        }
+        var focused by remember { mutableStateOf(false) }
+        var widthPx by remember { mutableFloatStateOf(1f) }
+        Box(
+            Modifier
+                .width(if (tv) 140.dp else 88.dp)
+                .height(28.dp)
+                .onSizeChanged { widthPx = it.width.toFloat().coerceAtLeast(1f) }
+                .onFocusChanged { focused = it.isFocused }
+                .onKeyEvent {
+                    if (it.type != KeyEventType.KeyDown) return@onKeyEvent false
+                    when (it.key) {
+                        Key.DirectionLeft -> { onChange((volume - 0.1f).coerceIn(0f, 1f)); true }
+                        Key.DirectionRight -> { onChange((volume + 0.1f).coerceIn(0f, 1f)); true }
+                        else -> false
+                    }
+                }
+                .focusable()
+                .pointerInput(Unit) {
+                    detectTapGestures { onChange((it.x / widthPx).coerceIn(0f, 1f)) }
+                }
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures { change, _ -> onChange((change.position.x / widthPx).coerceIn(0f, 1f)) }
+                },
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(Color.White.copy(alpha = 0.25f)))
+            Box(Modifier.fillMaxWidth(volume).height(4.dp).clip(RoundedCornerShape(2.dp)).background(if (focused) Casa.accent else Color.White))
+        }
+    }
 }
 
 @Composable
 private fun GuideLine(label: String, programme: Programme?, strong: Boolean) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(label, color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp, modifier = Modifier.width(52.dp))
+    val tv = LocalForm.current.tv
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(if (tv) 12.dp else 8.dp)) {
+        Text(label, color = Color.White.copy(alpha = 0.5f), fontSize = if (tv) 13.sp else 11.sp, modifier = Modifier.width(if (tv) 52.dp else 40.dp))
         if (programme == null) {
-            Text("–", color = Color.White.copy(alpha = 0.4f), fontSize = 15.sp)
+            Text("–", color = Color.White.copy(alpha = 0.4f), fontSize = 14.sp)
         } else {
-            Text("${time(programme.start)}–${time(programme.stop)}", color = Color.White.copy(alpha = 0.5f), fontFamily = CasaFonts.mono, fontSize = 13.sp)
+            Text("${time(programme.start)}–${time(programme.stop)}", color = Color.White.copy(alpha = 0.5f), fontFamily = CasaFonts.mono, fontSize = if (tv) 13.sp else 11.sp)
             Text(
                 programme.title,
                 color = if (strong) Color.White else Color.White.copy(alpha = 0.7f),
-                fontSize = if (strong) 19.sp else 16.sp,
+                fontSize = if (tv) (if (strong) 19.sp else 16.sp) else (if (strong) 15.sp else 13.sp),
                 fontWeight = if (strong) FontWeight.Medium else FontWeight.Normal,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -420,8 +489,9 @@ private fun GuideLine(label: String, programme: Programme?, strong: Boolean) {
 }
 
 /**
- * Channels below each other, programmes of the selected one beside them. OK on a channel shows
- * its guide while the picture keeps playing; OK again switches to it.
+ * The web player's guide. Wide (TV, landscape): channels below each other with the programmes of
+ * the selected one beside them. Narrow (phone upright): the channels; tap one for its programmes.
+ * Picking the selected channel again switches to it.
  */
 @Composable
 private fun GuidePanel(
@@ -429,11 +499,14 @@ private fun GuidePanel(
     watching: Watching,
     onPick: (Int) -> Unit,
     modifier: Modifier,
-    compact: Boolean = false,
+    narrow: Boolean = false,
     onClose: (() -> Unit)? = null,
 ) {
     val channels = watching.channels
-    var selected by remember { mutableStateOf(watching.index) }
+    val tv = LocalForm.current.tv
+    // Narrow: null shows the channel list; a channel shows its programmes.
+    var selected by remember { mutableStateOf<Int?>(if (narrow) null else watching.index) }
+    val shown = selected ?: watching.index
     var programmes by remember { mutableStateOf<List<Programme>?>(null) }
     var nowNext by remember { mutableStateOf<Map<String, NowNext>>(emptyMap()) }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = (watching.index - 3).coerceAtLeast(0))
@@ -443,81 +516,108 @@ private fun GuidePanel(
         runCatching { current.requestFocus() }
         nowNext = runCatching { session.api.nowNext(channels.map { it.id }) }.getOrDefault(emptyMap())
     }
-    LaunchedEffect(selected) {
+    LaunchedEffect(shown) {
         programmes = null
-        programmes = runCatching { session.api.guide(channels[selected].id) }.getOrDefault(emptyList())
+        programmes = runCatching { session.api.guide(channels[shown].id) }.getOrDefault(emptyList())
     }
 
-    Column(modifier.background(Casa.bg).border(1.dp, Casa.line)) {
-        Row(Modifier.padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.guide), color = Casa.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            Text(
-                watching.label,
-                color = Casa.muted,
-                fontSize = 13.sp,
-                modifier = Modifier.border(1.dp, Casa.line, RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 3.dp),
-            )
-            onClose?.let {
-                Box(Modifier.padding(start = 8.dp).size(36.dp).focusRing(CircleShape, onClick = it), contentAlignment = Alignment.Center) {
-                    Icon(Icons.close, Casa.muted, 20.dp)
+    val channelList: @Composable (Modifier) -> Unit = { size ->
+        LazyColumn(size, state = listState) {
+            itemsIndexed(channels, key = { _, c -> c.id }) { index, c ->
+                val isPlaying = index == watching.index
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .then(if (isPlaying) Modifier.focusRequester(current) else Modifier)
+                        .focusRing(RoundedCornerShape(0.dp), onFocus = { if (it && !narrow) selected = index }) {
+                            if (shown == index && (!narrow || selected != null)) onPick(index) else selected = index
+                        }
+                        .background(if (index == shown && !narrow) Casa.raised else Color.Transparent)
+                        .padding(horizontal = 12.dp, vertical = if (tv) 8.dp else 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Box(Modifier.width(3.dp).height(32.dp).background(if (isPlaying) Casa.live else Color.Transparent))
+                    Text((index + 1).toString(), color = Casa.muted, fontFamily = CasaFonts.mono, fontSize = 12.sp, modifier = Modifier.width(24.dp))
+                    ChannelLogo(c.name, session.logo(c.logo), session.token, 36.dp)
+                    Column(Modifier.weight(1f)) {
+                        Text(c.name, color = Casa.text, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(nowNext[c.id.toString()]?.now?.title ?: "", color = Casa.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    if (c.favorite) Icon(Icons.starFilled, Casa.accent, 14.dp)
                 }
             }
         }
-        Row(Modifier.fillMaxSize()) {
-            LazyColumn((if (compact) Modifier.fillMaxWidth(0.5f) else Modifier.width(250.dp)).fillMaxHeight(), state = listState) {
-                itemsIndexed(channels, key = { _, c -> c.id }) { index, c ->
-                    val isPlaying = index == watching.index
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .then(if (isPlaying) Modifier.focusRequester(current) else Modifier)
-                            .focusRing(RoundedCornerShape(0.dp), onFocus = { if (it) selected = index }) {
-                                if (selected == index) onPick(index) else selected = index
-                            }
-                            .background(if (isPlaying) Casa.live.copy(alpha = 0.12f) else Color.Transparent)
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    }
+
+    val programmeList: @Composable (Modifier) -> Unit = { size ->
+        Column(size) {
+            if (shown != watching.index) {
+                CasaButton(
+                    stringResource(R.string.watch_channel, channels[shown].name),
+                    Modifier.padding(12.dp).fillMaxWidth(),
+                ) { onPick(shown) }
+            }
+            val list = programmes
+            if (list != null && list.isEmpty()) {
+                Text(stringResource(R.string.no_guide), color = Casa.muted, fontSize = 14.sp, modifier = Modifier.padding(20.dp))
+            }
+            LazyColumn {
+                items(list.orEmpty(), key = { "${it.start}${it.title}" }) { p ->
+                    val playing = progressOf(p) in 0.0001f..0.9999f
+                    Column(
+                        Modifier.fillMaxWidth().background(if (playing) Casa.raised else Color.Transparent).padding(horizontal = 16.dp, vertical = 9.dp),
                     ) {
-                        Text((index + 1).toString(), color = Casa.muted, fontFamily = CasaFonts.mono, fontSize = 12.sp, modifier = Modifier.width(28.dp))
-                        ChannelLogo(c.name, session.logo(c.logo), session.token, 36.dp)
-                        Column(Modifier.weight(1f)) {
-                            Text(c.name, color = Casa.text, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(nowNext[c.id.toString()]?.now?.title ?: "", color = Casa.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(time(p.start), color = if (playing) Casa.accent else Casa.muted, fontFamily = CasaFonts.mono, fontSize = 12.sp)
+                            Text(p.title, color = Casa.text, fontSize = 14.sp, fontWeight = if (playing) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        if (playing) {
+                            p.description?.let { Text(it, color = Casa.muted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 52.dp, top = 4.dp)) }
+                            ProgressBar(progressOf(p), Modifier.padding(start = 52.dp, top = 6.dp).fillMaxWidth())
                         }
                     }
                 }
             }
-            Column(Modifier.weight(1f).fillMaxHeight().border(1.dp, Casa.line)) {
-                if (selected != watching.index) {
-                    Text(
-                        stringResource(R.string.watch_channel, channels[selected].name),
-                        color = Casa.accentInk,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(12.dp).fillMaxWidth().background(Casa.accent, RoundedCornerShape(10.dp)).padding(10.dp),
-                    )
+        }
+    }
+
+    Column(modifier.background(Casa.bg).border(1.dp, Casa.line)) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (narrow && selected != null) {
+                Box(Modifier.size(32.dp).focusRing(CircleShape) { selected = null }, contentAlignment = Alignment.Center) {
+                    Icon(Icons.back, Casa.muted, 18.dp)
                 }
-                val list = programmes
-                if (list != null && list.isEmpty()) {
-                    Text(stringResource(R.string.no_guide), color = Casa.muted, fontSize = 14.sp, modifier = Modifier.padding(20.dp))
+            }
+            Text(
+                if (narrow && selected != null) channels[shown].name else stringResource(R.string.guide),
+                color = Casa.text,
+                fontSize = if (tv) 18.sp else 15.sp,
+                fontFamily = CasaFonts.display,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                watching.label,
+                color = Casa.muted,
+                fontSize = 12.sp,
+                maxLines = 1,
+                modifier = Modifier.border(1.dp, Casa.line, RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 3.dp),
+            )
+            onClose?.let {
+                Box(Modifier.size(32.dp).focusRing(CircleShape, onClick = it), contentAlignment = Alignment.Center) {
+                    Icon(Icons.close, Casa.muted, 18.dp)
                 }
-                LazyColumn {
-                    items(list.orEmpty(), key = { "${it.start}${it.title}" }) { p ->
-                        val playing = progressOf(p) in 0.0001f..0.9999f
-                        Column(
-                            Modifier.fillMaxWidth().background(if (playing) Casa.raised else Color.Transparent).padding(horizontal = 16.dp, vertical = 9.dp),
-                        ) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Text(time(p.start), color = if (playing) Casa.accent else Casa.muted, fontFamily = CasaFonts.mono, fontSize = 12.sp)
-                                Text(p.title, color = Casa.text, fontSize = 14.sp, fontWeight = if (playing) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                            if (playing) ProgressBar(progressOf(p), Modifier.padding(start = 52.dp, top = 6.dp).fillMaxWidth())
-                        }
-                    }
-                }
+            }
+        }
+        if (narrow) {
+            if (selected == null) channelList(Modifier.fillMaxSize()) else programmeList(Modifier.fillMaxSize())
+        } else {
+            Row(Modifier.fillMaxSize()) {
+                channelList((if (tv) Modifier.width(250.dp) else Modifier.weight(1f)).fillMaxHeight())
+                programmeList(Modifier.weight(1.25f).fillMaxHeight().border(1.dp, Casa.line))
             }
         }
     }

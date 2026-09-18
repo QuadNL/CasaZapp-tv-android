@@ -146,8 +146,8 @@ fun App(store: ConnectionStore) {
             }
         } else {
             Row(Modifier.fillMaxSize()) {
-                NavRail(route) { route = it }
-                val pad = if (form.tv) Modifier.padding(horizontal = 48.dp, vertical = 36.dp) else Modifier.padding(24.dp)
+                NavRail(route, iconsOnly = form.phone) { route = it }
+                val pad = if (form.tv) Modifier.padding(horizontal = 48.dp, vertical = 36.dp) else if (form.phone) Modifier.padding(16.dp) else Modifier.padding(24.dp)
                 Box(Modifier.weight(1f).fillMaxHeight().systemBarsPadding().then(pad)) { screen() }
             }
         }
@@ -181,8 +181,30 @@ private fun TabBar(route: Route, onRoute: (Route) -> Unit) {
 
 /** The web app's desktop sidebar: brand on top, then the sections. */
 @Composable
-private fun NavRail(route: Route, onRoute: (Route) -> Unit) {
+private fun NavRail(route: Route, iconsOnly: Boolean = false, onRoute: (Route) -> Unit) {
     val items: List<Triple<Route, ImageVector, Int>> = NAV
+    if (iconsOnly) {
+        // A phone on its side: the web's tablet rail, icons with a small label.
+        Column(
+            Modifier.width(76.dp).fillMaxHeight().background(Casa.surface).systemBarsPadding().padding(vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            androidx.compose.foundation.Image(painterResource(R.drawable.icon), null, Modifier.padding(bottom = 12.dp).size(32.dp))
+            items.forEach { (target, icon, label) ->
+                val active = route == target
+                Column(
+                    Modifier.fillMaxWidth().focusRing { onRoute(target) }.padding(vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Icon(icon, tint = if (active) Casa.accent else Casa.muted, size = 22.dp)
+                    Text(stringResource(label), color = if (active) Casa.text else Casa.muted, fontSize = 10.sp, maxLines = 1)
+                }
+            }
+        }
+        return
+    }
     Column(
         Modifier.width(240.dp).fillMaxHeight().background(Casa.surface).padding(horizontal = 16.dp, vertical = 32.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),

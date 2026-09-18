@@ -73,6 +73,7 @@ object Icons {
     val star = icon(IconPaths.star)
     val starFilled = icon(IconPaths.star, filled = true)
     val guide = icon(IconPaths.guide)
+    val rotate = icon(IconPaths.rotate)
     val list = icon(IconPaths.list)
     val close = icon(IconPaths.close)
     val play = icon(IconPaths.play, filled = true)

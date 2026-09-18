@@ -54,4 +54,5 @@ object IconPaths {
     const val edit = "M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"
     const val swap = "M4 8h14l-4-4M20 16H6l4 4"
     const val guide = "M4 5h16v14H4zM4 10h16M9 10v9"
+    const val rotate = "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"
 }
