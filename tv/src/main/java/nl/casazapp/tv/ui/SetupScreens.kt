@@ -2,6 +2,7 @@
 
 package nl.casazapp.tv.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -93,6 +94,8 @@ private fun Choice(title: String, hint: String, modifier: Modifier = Modifier, o
 /** A playlist on the device itself: Xtream Codes or an M3U URL, like "Add playlist" on the web. */
 @Composable
 fun LocalSetupScreen(initial: LocalPlaylist?, onSaved: (LocalPlaylist) -> Unit, onBack: () -> Unit) {
+    // Without this, Back closes the app: the main screen's handler is not there yet (#78).
+    BackHandler(onBack = onBack)
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var type by remember { mutableStateOf(initial?.type ?: LocalPlaylist.XTREAM) }

@@ -94,6 +94,10 @@ fun App(store: ConnectionStore) {
         when {
             mode == null -> {
                 WelcomeScreen(onChoose = { scope.launch { store.saveSourceMode(it) } })
+                // The first screen: Back asks before closing, like on Home (#78).
+                var askExit by remember { mutableStateOf(false) }
+                BackHandler { askExit = true }
+                if (askExit) ExitPrompt(onCancel = { askExit = false }, onExit = { context.findActivity()?.finish() })
                 return@Box
             }
             mode == SourceMode.SERVER && current == null -> {

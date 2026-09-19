@@ -2,6 +2,7 @@
 
 package nl.casazapp.tv.ui
 
+import androidx.activity.compose.BackHandler
 import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -59,6 +60,8 @@ private sealed interface Pairing {
  */
 @Composable
 fun ConnectScreen(onConnected: (Connection) -> Unit, onBack: () -> Unit) {
+    // Without this, Back closes the app: the main screen's handler is not there yet (#78).
+    BackHandler(onBack = onBack)
     // Start typing after the scheme: that is where the address goes.
     var field by remember { mutableStateOf(TextFieldValue("https://", TextRange(8))) }
     val server = field.text.trim()
