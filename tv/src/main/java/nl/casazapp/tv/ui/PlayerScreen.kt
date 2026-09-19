@@ -134,6 +134,9 @@ fun PlayerScreen(
     var favorite by remember { mutableStateOf(channel.favorite) }
     var volume by remember { mutableFloatStateOf(1f) }
     var guideOpen by remember { mutableStateOf(false) }
+    // Holding OK on the remote opens this; it adds or removes the channel from the favourites.
+    var favoriteMenu by remember { mutableStateOf(false) }
+    var okHeld by remember { mutableStateOf(false) }
     val form = LocalForm.current
     val compact = form.compact
     val tvLook = form.tv
@@ -260,7 +263,20 @@ fun PlayerScreen(
             size
                 .background(Color.Black)
                 // Touch only: on a TV, clickable would treat OK's key-up as a second press and hide the OSD again.
-                .then(if (tvLook) Modifier else Modifier.clickable(interactionSource = null, indication = null) { if (osd) hideOsd() else showOsd() })
+                .then(
+                    if (tvLook) {
+                        Modifier
+                    } else {
+                        Modifier.clickable(interactionSource = null, indication = null) {
+                            // With the guide beside it, a tap on the small picture makes it big again.
+                            when {
+                                guideOpen && !compact -> guideOpen = false
+                                osd -> hideOsd()
+                                else -> showOsd()
+                            }
+                        }
+                    },
+                )
                 .pointerInput(tvLook) {
                     if (tvLook) return@pointerInput
                     // Like the web: swipe up for the guide, down to send it away; zapping is on the arrows.
@@ -274,24 +290,28 @@ fun PlayerScreen(
                 .focusRequester(root)
                 .focusable()
                 .onPreviewKeyEvent { event ->
-                    if (guideOpen) return@onPreviewKeyEvent false
-                    val ok = event.key.nativeKeyCode.let {
-                        it == AndroidKeyEvent.KEYCODE_DPAD_CENTER || it == AndroidKeyEvent.KEYCODE_ENTER
-                    }
-                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent ok
-                    when (event.key.nativeKeyCode) {
-                        AndroidKeyEvent.KEYCODE_DPAD_UP, AndroidKeyEvent.KEYCODE_CHANNEL_UP -> zap(-1)
-                        AndroidKeyEvent.KEYCODE_CHANNEL_DOWN -> zap(1)
-                        // With the OSD shown, down goes to its buttons instead of zapping.
-                        AndroidKeyEvent.KEYCODE_DPAD_DOWN -> if (osd) {
-                            showOsd()
-                            runCatching { firstControl.requestFocus() }
-                        } else {
-                            zap(1)
+                    if (guideOpen || favoriteMenu) return@onPreviewKeyEvent false
+                    val code = event.key.nativeKeyCode
+                    val ok = code == AndroidKeyEvent.KEYCODE_DPAD_CENTER || code == AndroidKeyEvent.KEYCODE_ENTER
+                    if (ok) {
+                        // OK acts on release, so holding it can open the favourite pop-up instead.
+                        when {
+                            event.type == KeyEventType.KeyDown && event.nativeKeyEvent.repeatCount == 0 -> okHeld = false
+                            event.type == KeyEventType.KeyDown && (event.nativeKeyEvent.isLongPress || event.nativeKeyEvent.repeatCount >= 6) && !okHeld -> {
+                                okHeld = true
+                                favoriteMenu = true
+                            }
+                            event.type == KeyEventType.KeyUp && !okHeld -> if (osd) hideOsd() else showOsd()
                         }
+                        return@onPreviewKeyEvent true
+                    }
+                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    when (code) {
+                        // Up and down always zap, with or without the OSD.
+                        AndroidKeyEvent.KEYCODE_DPAD_UP, AndroidKeyEvent.KEYCODE_CHANNEL_UP -> zap(-1)
+                        AndroidKeyEvent.KEYCODE_DPAD_DOWN, AndroidKeyEvent.KEYCODE_CHANNEL_DOWN -> zap(1)
                         AndroidKeyEvent.KEYCODE_GUIDE, AndroidKeyEvent.KEYCODE_MENU, AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> guideOpen = true
-                        AndroidKeyEvent.KEYCODE_DPAD_CENTER, AndroidKeyEvent.KEYCODE_ENTER, AndroidKeyEvent.KEYCODE_INFO ->
-                            if (osd) hideOsd() else showOsd()
+                        AndroidKeyEvent.KEYCODE_INFO -> if (osd) hideOsd() else showOsd()
                         else -> return@onPreviewKeyEvent false
                     }
                     true
@@ -345,7 +365,7 @@ fun PlayerScreen(
             }
 
             // With the guide open on a TV, the small picture's own information would only get in the way.
-            if (osd && !(tvLook && guideOpen)) {
+            if (osd && !(guideOpen && !compact)) {
                 Row(
                     Modifier
                         .align(Alignment.TopStart)
@@ -387,6 +407,21 @@ fun PlayerScreen(
             }
         } }
 
+    if (favoriteMenu) {
+        FavoritePrompt(
+            channel = channel,
+            favorite = favorite,
+            onToggle = {
+                favorite = !favorite
+                val value = favorite
+                scope.launch { runCatching { session.api.setFavorite(channel.id, value) } }
+                favoriteMenu = false
+                showOsd()
+            },
+            onClose = { favoriteMenu = false },
+        )
+    }
+
     if (!compact) {
         // The TV guide, also on a phone on its side and a tablet: the picture shrinks to the top left,
         // the channel beside it, and below the timeline with the same chips as Live TV.
@@ -406,7 +441,15 @@ fun PlayerScreen(
                         .height(h)
                         .alpha(guideShown),
                     verticalArrangement = Arrangement.Center,
-                ) { ChannelInfo(watching.index + 1, channel, detail, guide, session) }
+                ) {
+                    ChannelInfo(watching.index + 1, channel, detail, guide, session, trailing = {
+                        if (!tvLook) {
+                            Box(Modifier.size(40.dp).focusRing(CircleShape) { guideOpen = false }, contentAlignment = Alignment.Center) {
+                                Icon(Icons.close, Casa.muted, 22.dp)
+                            }
+                        }
+                    })
+                }
                 Column(
                     Modifier
                         .offset(x = pad, y = h + pad * 1.5f)
@@ -469,6 +512,29 @@ internal tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
     else -> null
+}
+
+/** Held OK on the remote: add the channel to the favourites or take it off. */
+@Composable
+private fun FavoritePrompt(channel: Channel, favorite: Boolean, onToggle: () -> Unit, onClose: () -> Unit) {
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
+        Column(
+            Modifier.background(Casa.surface, RoundedCornerShape(16.dp)).border(1.dp, Casa.line, RoundedCornerShape(16.dp)).padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(channel.name, color = Casa.text, fontSize = 20.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                CasaButton(
+                    stringResource(if (favorite) R.string.favorite_remove else R.string.favorite_add),
+                    Modifier.focusRequester(first),
+                    onClick = onToggle,
+                )
+                CasaButton(stringResource(R.string.exit_stay), primary = false, onClick = onClose)
+            }
+        }
+    }
 }
 
 /** Number, logo, category with LIVE, name, then now and next: the heart of the OSD and the TV guide. */
@@ -559,7 +625,12 @@ private fun Osd(
             ),
     ) {
         if (!sideBySide) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { controls() }
-        ChannelInfo(number, channel, detail, guide, session, trailing = { if (sideBySide) controls() })
+        ChannelInfo(number, channel, detail, guide, session, trailing = {
+            when {
+                tv -> if (favorite) Icon(Icons.starFilled, Casa.accent, 32.dp)
+                sideBySide -> controls()
+            }
+        })
         if (tv) Text(stringResource(R.string.player_hint), color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
     }
 }

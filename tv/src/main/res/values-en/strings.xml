@@ -33,7 +33,7 @@
     <string name="guide">Programme guide</string>
     <string name="today">Today</string>
     <string name="watch_channel">Watch %1$s</string>
-    <string name="player_hint">↑/↓ zap · OK info · → guide · Back close</string>
+    <string name="player_hint">↑/↓ zap · OK info · hold OK: favourite · → guide · Back close</string>
     <string name="server">Server</string>
     <string name="version">Version</string>
     <string name="display">Display</string>
@@ -84,4 +84,6 @@
     <string name="m3u_file">File</string>
     <string name="choose_file">Choose file</string>
     <string name="file_chosen">Chosen: %1$s</string>
+    <string name="favorite_add">Add to favourites</string>
+    <string name="favorite_remove">Remove from favourites</string>
 </resources>

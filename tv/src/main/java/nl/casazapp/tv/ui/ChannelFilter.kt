@@ -5,7 +5,10 @@ package nl.casazapp.tv.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -216,7 +219,12 @@ private fun CategoryPicker(categories: List<Category>, onPick: (Category) -> Uni
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text(stringResource(R.string.categories, categories.size), color = Casa.text, fontSize = 18.sp, fontFamily = CasaFonts.display)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.categories, categories.size), color = Casa.text, fontSize = 18.sp, fontFamily = CasaFonts.display, modifier = Modifier.weight(1f))
+                Box(Modifier.size(40.dp).focusRing(CircleShape, onClick = onClose), contentAlignment = Alignment.Center) {
+                    Icon(Icons.close, Casa.muted, 22.dp)
+                }
+            }
             BasicTextField(
                 value = query,
                 onValueChange = { query = it },

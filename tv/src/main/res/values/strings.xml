@@ -34,7 +34,7 @@
     <string name="guide">Programmagids</string>
     <string name="today">Vandaag</string>
     <string name="watch_channel">Kijk %1$s</string>
-    <string name="player_hint">↑/↓ zappen · OK info · → gids · Terug sluiten</string>
+    <string name="player_hint">↑/↓ zappen · OK info · OK vasthouden: favoriet · → gids · Terug sluiten</string>
     <string name="server">Server</string>
     <string name="version">Versie</string>
     <string name="display">Weergave</string>
@@ -85,4 +85,6 @@
     <string name="m3u_file">Bestand</string>
     <string name="choose_file">Bestand kiezen</string>
     <string name="file_chosen">Gekozen: %1$s</string>
+    <string name="favorite_add">Toevoegen aan favorieten</string>
+    <string name="favorite_remove">Verwijderen uit favorieten</string>
 </resources>
