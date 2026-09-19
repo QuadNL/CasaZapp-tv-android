@@ -49,6 +49,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import nl.casazapp.core.api.Programme
+import androidx.compose.ui.draw.scale
 
 /** The web app's icons (see Design.kt), drawn as 24×24 strokes. */
 object Icons {
@@ -90,6 +91,8 @@ fun Icon(vector: ImageVector, tint: Color = Casa.text, size: Dp = 24.dp, modifie
 @Composable
 fun Modifier.focusRing(
     shape: RoundedCornerShape = RoundedCornerShape(12.dp),
+    /** The ring's colour; white on an accent button, where an accent ring would not show (#54). */
+    ring: Color = Casa.accent,
     onFocus: (Boolean) -> Unit = {},
     onClick: () -> Unit,
 ): Modifier {
@@ -97,7 +100,7 @@ fun Modifier.focusRing(
     return this
         .clip(shape)
         .background(if (focused) Casa.raised else Color.Transparent)
-        .border(2.dp, if (focused) Casa.accent else Color.Transparent, shape)
+        .border(if (ring == Casa.accent) 2.dp else 3.dp, if (focused) ring else Color.Transparent, shape)
         .onFocusChanged {
             focused = it.isFocused
             onFocus(it.isFocused)
@@ -125,9 +128,14 @@ fun CasaButton(
     onClick: () -> Unit,
 ) {
     val shape = RoundedCornerShape(10.dp)
+    var focused by remember { mutableStateOf(false) }
     Box(
         modifier
-            .focusRing(shape) { if (enabled) onClick() }
+            // A focused primary button grows a little and gets a white ring: seen at a glance from the couch.
+            .scale(if (focused && primary) 1.05f else 1f)
+            .focusRing(shape, ring = if (primary) Color.White else Casa.accent, onFocus = { focused = it }) {
+                if (enabled) onClick()
+            }
             .background(if (primary) Casa.accent.copy(alpha = if (enabled) 1f else 0.4f) else Color.Transparent, shape)
             .border(1.dp, if (primary) Color.Transparent else Casa.line, shape)
             .padding(horizontal = 20.dp, vertical = 11.dp),

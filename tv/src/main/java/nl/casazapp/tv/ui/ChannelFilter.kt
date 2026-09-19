@@ -192,8 +192,9 @@ fun FilterChips(state: ChannelFilter, session: Session, modifier: Modifier = Mod
     val manyCategories = state.categories.size > CHIP_CATEGORIES
     LazyRow(modifier, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         before()
-        // With several playlists you pick one first; with a single one there is nothing to pick.
-        if (state.playlists.size > 1) {
+        // With several playlists you pick one first; with a single one, or a primary list that
+        // spans them all, there is nothing to pick.
+        if (state.playlists.size > 1 && state.lists.none { it.primary }) {
             items(state.playlists, key = { "p${it.id}" }) { p ->
                 Chip("▣ ${p.name}", state.playlistId == p.id) { scope.launch { state.switchPlaylist(session, p.id) } }
             }
