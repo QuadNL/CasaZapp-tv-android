@@ -43,7 +43,10 @@ import nl.casazapp.core.api.Category
 import nl.casazapp.core.api.Channel
 import nl.casazapp.core.api.ChannelList
 import nl.casazapp.core.api.NowNext
+import nl.casazapp.core.api.Playlist
 import nl.casazapp.tv.R
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 private const val PAGE = 500
 
@@ -58,8 +61,14 @@ sealed interface Filter {
     data class InCategory(val category: Category) : Filter
 }
 
+/** The playlist picked last, shared by Live TV and the player's guide while the app runs (#71). */
+private object PlaylistChoice {
+    var id: Int? = null
+}
+
 /** The chips of Live TV and the guide: your lists, favourites and (without a primary list) categories. */
 class ChannelFilter {
+    var playlists by mutableStateOf<List<Playlist>>(emptyList())
     var playlistId by mutableStateOf<Int?>(null)
     var lists by mutableStateOf<List<ChannelList>>(emptyList())
     var categories by mutableStateOf<List<Category>>(emptyList())
@@ -107,7 +116,8 @@ fun rememberChannelFilter(session: Session, current: List<Channel>? = null, curr
     val favoritesLabel = stringResource(R.string.favorites)
     LaunchedEffect(Unit) {
         runCatching {
-            val id = api.playlists().firstOrNull()?.id
+            state.playlists = api.playlists()
+            val id = (state.playlists.firstOrNull { it.id == PlaylistChoice.id } ?: state.playlists.firstOrNull())?.id
             state.lists = api.lists()
             val primary = state.lists.firstOrNull { it.primary }
             if (id != null && primary == null) state.categories = api.categories(id)
@@ -144,6 +154,18 @@ fun rememberChannelFilter(session: Session, current: List<Channel>? = null, curr
     return state
 }
 
+/** Shows another playlist; a category belongs to one playlist, own lists and favourites span them all. */
+suspend fun ChannelFilter.switchPlaylist(session: Session, id: Int) {
+    if (id == playlistId) return
+    PlaylistChoice.id = id
+    val primary = lists.any { it.primary }
+    categories = if (primary) emptyList() else runCatching { session.api.categories(id) }.getOrDefault(emptyList())
+    if (filter == null || filter is Filter.InCategory) {
+        filter = lists.firstOrNull { it.primary }?.let { Filter.OwnList(it) } ?: Filter.All
+    }
+    playlistId = id
+}
+
 /** The selection as the web app names it, for "continue watching". */
 fun ChannelFilter.context(): String? = when (val f = filter) {
     null, Filter.All -> null
@@ -161,7 +183,8 @@ fun ChannelFilter.label(): String = when (val f = filter) {
 }
 
 @Composable
-fun FilterChips(state: ChannelFilter, modifier: Modifier = Modifier, before: LazyListScope.() -> Unit = {}) {
+fun FilterChips(state: ChannelFilter, session: Session, modifier: Modifier = Modifier, before: LazyListScope.() -> Unit = {}) {
+    val scope = rememberCoroutineScope()
     val favorites = stringResource(R.string.favorites)
     val all = stringResource(R.string.all)
     var picking by remember { mutableStateOf(false) }
@@ -169,6 +192,12 @@ fun FilterChips(state: ChannelFilter, modifier: Modifier = Modifier, before: Laz
     val manyCategories = state.categories.size > CHIP_CATEGORIES
     LazyRow(modifier, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         before()
+        // With several playlists you pick one first; with a single one there is nothing to pick.
+        if (state.playlists.size > 1) {
+            items(state.playlists, key = { "p${it.id}" }) { p ->
+                Chip("▣ ${p.name}", state.playlistId == p.id) { scope.launch { state.switchPlaylist(session, p.id) } }
+            }
+        }
         if (state.lists.none { it.primary }) {
             item { Chip(all, state.filter == Filter.All) { state.filter = Filter.All } }
         }

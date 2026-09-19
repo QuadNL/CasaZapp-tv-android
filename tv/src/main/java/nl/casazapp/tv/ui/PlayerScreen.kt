@@ -460,7 +460,7 @@ fun PlayerScreen(
                     if (guideOpen || guideShown > 0.5f) {
                         val filter = rememberChannelFilter(session, channels, watching.label)
                         val label = filter.label()
-                        FilterChips(filter, Modifier.padding(bottom = 10.dp))
+                        FilterChips(filter, session, Modifier.padding(bottom = 10.dp))
                         val list = filter.channels
                         if (list == null) {
                             Text(stringResource(R.string.loading), color = Casa.muted)
@@ -918,7 +918,7 @@ private fun GuidePanel(
                 }
             }
         }
-        if (selected == null || !narrow) FilterChips(filter, Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp))
+        if (selected == null || !narrow) FilterChips(filter, session, Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp))
         if (narrow) {
             if (selected == null) channelList(Modifier.fillMaxSize()) else programmeList(Modifier.fillMaxSize())
         } else {

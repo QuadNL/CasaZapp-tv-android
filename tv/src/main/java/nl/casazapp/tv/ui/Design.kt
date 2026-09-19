@@ -55,4 +55,6 @@ object IconPaths {
     const val swap = "M4 8h14l-4-4M20 16H6l4 4"
     const val guide = "M4 5h16v14H4zM4 10h16M9 10v9"
     const val rotate = "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"
+    const val android = "M6 10a6 6 0 0 1 12 0v7a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1zM8 4.5 9.5 6.5M16 4.5l-1.5 2M9.5 13h.01M14.5 13h.01M9 18v3M15 18v3M3.5 11v5M20.5 11v5"
+    const val download = "M12 3v12M7 10l5 5 5-5M5 21h14"
 }

@@ -57,7 +57,7 @@ fun LiveScreen(session: Session, onWatch: (Watching) -> Unit) {
             // A phone on its side has little height: title, switch and chips share one line.
             Row(Modifier.padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.nav_live), color = Casa.text, fontSize = 20.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
-                FilterChips(state, Modifier.padding(start = 16.dp).weight(1f)) { item { switch() } }
+                FilterChips(state, session, Modifier.padding(start = 16.dp).weight(1f)) { item { switch() } }
             }
         } else {
             Text(stringResource(R.string.nav_live), color = Casa.text, fontSize = if (form.compact) 24.sp else 32.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
@@ -68,7 +68,7 @@ fun LiveScreen(session: Session, onWatch: (Watching) -> Unit) {
                 // Timeline or list, like the switch on the web.
                 switch()
             }
-            FilterChips(state, Modifier.padding(vertical = 18.dp))
+            FilterChips(state, session, Modifier.padding(vertical = 18.dp))
         }
 
         val current = state.channels
