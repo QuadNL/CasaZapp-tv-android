@@ -141,6 +141,14 @@ fun rememberChannelFilter(session: Session, current: List<Channel>? = null, curr
     return state
 }
 
+/** The selection as the web app names it, for "continue watching". */
+fun ChannelFilter.context(): String? = when (val f = filter) {
+    null, Filter.All -> null
+    Filter.Favorites -> "favorites"
+    is Filter.OwnList -> "list:${f.list.id}"
+    is Filter.InCategory -> f.category.id.toString()
+}
+
 @Composable
 fun ChannelFilter.label(): String = when (val f = filter) {
     null, Filter.All -> stringResource(R.string.all)

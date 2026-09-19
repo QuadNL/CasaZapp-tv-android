@@ -23,5 +23,9 @@ interface TvSource {
     /** Programmes per channel id from [from] for [hours] hours, for the Live TV timeline. */
     suspend fun grid(channelIds: List<Int>, from: java.time.Instant, hours: Int): Map<String, List<Programme>>
     suspend fun stream(channelId: Int): ChannelStream
+    /** The channel watched last on any device, with what it was zapped through; null when unknown. */
+    suspend fun recent(): RecentChannel? = null
+    /** [context]: a category id, "favorites" or "list:<id>", as the web app uses. */
+    suspend fun setRecent(channelId: Int, context: String?) {}
     fun close()
 }

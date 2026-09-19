@@ -76,13 +76,13 @@ fun LiveScreen(session: Session, onWatch: (Watching) -> Unit) {
             state.failed -> Text(stringResource(R.string.connect_failed), color = Casa.live)
             current == null -> Text(stringResource(R.string.loading), color = Casa.muted)
             timeline -> LiveTimeline(session, current, onNearEnd = { scope.launch { state.loadMore(session) } }) { index ->
-                onWatch(Watching(current, index, label))
+                onWatch(Watching(current, index, label, state.context()))
             }
             else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 itemsIndexed(current, key = { _, c -> c.id }) { index, channel ->
                     if (index >= current.size - 20) LaunchedEffect(current.size) { state.loadMore(session) }
                     ChannelRow(index + 1, channel, state.guide[channel.id.toString()], session) {
-                        onWatch(Watching(current, index, label))
+                        onWatch(Watching(current, index, label, state.context()))
                     }
                 }
             }

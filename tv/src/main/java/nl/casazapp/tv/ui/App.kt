@@ -57,7 +57,13 @@ data class Session(val api: TvSource, val serverUrl: String?, val token: String?
 }
 
 /** Which list the user watches, and where in it; the player zaps through the same list. */
-data class Watching(val channels: List<Channel>, val index: Int, val label: String)
+data class Watching(
+    val channels: List<Channel>,
+    val index: Int,
+    val label: String,
+    /** What is being zapped through, as the web app names it: category id, "favorites" or "list:<id>". */
+    val context: String? = null,
+)
 
 private enum class Route { Home, Live, Playlists, Settings }
 
@@ -123,7 +129,11 @@ fun App(store: ConnectionStore) {
                 session = session,
                 watching = playing,
                 onZap = { watching = playing.copy(index = it) },
-                onPlaying = { scope.launch { store.saveLastChannel(it) } },
+                onPlaying = {
+                    scope.launch { store.saveLastChannel(it) }
+                    // Shared with the web and the other devices, so Home continues here everywhere.
+                    scope.launch { runCatching { session.api.setRecent(it, playing.context) } }
+                },
                 onBack = { watching = null },
                 onSwitch = { watching = it },
             )

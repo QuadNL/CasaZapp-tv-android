@@ -10,6 +10,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
@@ -115,6 +116,19 @@ class CasaZappApi(baseUrl: String, private val token: String? = null) : TvSource
                 parameter("hours", hours)
             }
         }
+
+    override suspend fun recent(): RecentChannel? = authed("api/recent")
+
+    override suspend fun setRecent(channelId: Int, context: String?) {
+        client.put("api/recent") {
+            token?.let { bearerAuth(it) }
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("channelId", channelId)
+                put("context", context)
+            })
+        }
+    }
 
     /** The provider URL itself: a native player streams directly, not through the server. */
     override suspend fun stream(channelId: Int): ChannelStream = authed("api/channels/$channelId/stream")

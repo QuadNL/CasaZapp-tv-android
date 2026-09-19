@@ -33,6 +33,10 @@ data class ChannelDetail(
     val favorite: Boolean = false,
 )
 
+/** "Continue watching", shared by the household's devices through the server. */
+@Serializable
+data class RecentChannel(val channel: ChannelDetail, val context: String? = null)
+
 @Serializable
 data class Category(val id: Int, val type: String, val name: String, val enabledCount: Int = 0)
 

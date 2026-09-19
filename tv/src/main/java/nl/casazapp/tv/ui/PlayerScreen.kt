@@ -432,7 +432,7 @@ fun PlayerScreen(
                                 guideOpen = false
                                 when {
                                     list === channels -> if (index != watching.index) onZap(index)
-                                    else -> onSwitch(Watching(list, index, label))
+                                    else -> onSwitch(Watching(list, index, label, filter.context()))
                                 }
                             }
                         }
@@ -754,7 +754,7 @@ private fun GuidePanel(
     val nowNext = filter.guide
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = (watching.index - 3).coerceAtLeast(0))
     fun pick(index: Int) {
-        if (channels === watching.channels) onPick(index) else onSwitch(Watching(channels, index, label))
+        if (channels === watching.channels) onPick(index) else onSwitch(Watching(channels, index, label, filter.context()))
     }
 
     LaunchedEffect(shown, channels) {

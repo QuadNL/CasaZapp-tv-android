@@ -46,6 +46,8 @@ fun HomeScreen(session: Session, lastChannelId: Int?, onWatch: (Watching) -> Uni
     var last by remember { mutableStateOf<ChannelDetail?>(null) }
     var lastList by remember { mutableStateOf<List<Channel>>(emptyList()) }
     var lastLabel by remember { mutableStateOf("") }
+    var lastContext by remember { mutableStateOf<String?>(null) }
+    var rowContext by remember { mutableStateOf<String?>(null) }
     var favorites by remember { mutableStateOf<List<Channel>?>(null) }
     var row by remember { mutableStateOf<Pair<String, List<Channel>>?>(null) }
     var guide by remember { mutableStateOf<Map<String, NowNext>>(emptyMap()) }
@@ -57,22 +59,45 @@ fun HomeScreen(session: Session, lastChannelId: Int?, onWatch: (Watching) -> Uni
             favorites = api.channels(playlistId, favorites = true, limit = 40).items
             // Like the web: the primary list, otherwise the first category with more than one channel.
             val primary = api.lists().firstOrNull { it.primary }
-            lastChannelId?.let { id ->
-                val detail = api.channel(id)
+            // The household's "continue watching" from the server; this device's own memory otherwise.
+            val shared = runCatching { api.recent() }.getOrNull()
+            val detail = shared?.channel ?: lastChannelId?.let { runCatching { api.channel(it) }.getOrNull() }
+            if (detail != null) {
                 last = detail
-                val inPrimary = primary?.let { api.channels(playlistId, listId = it.id).items }
-                if (inPrimary != null && inPrimary.any { it.id == id }) {
-                    lastList = inPrimary
-                    lastLabel = primary.name
-                } else {
-                    lastList = api.channels(playlistId, categoryId = detail.categoryId).items
-                    lastLabel = detail.categoryName ?: ""
+                val context = shared?.context
+                val lists = api.lists()
+                val listId = context?.removePrefix("list:")?.takeIf { context.startsWith("list:") }?.toIntOrNull()
+                val (channels, label, used) = when {
+                    context == "favorites" -> Triple(favorites.orEmpty(), favoritesLabel, context)
+                    listId != null -> Triple(
+                        api.channels(playlistId, listId = listId).items,
+                        lists.firstOrNull { it.id == listId }?.name ?: "",
+                        context,
+                    )
+                    context?.toIntOrNull() != null -> Triple(
+                        api.channels(playlistId, categoryId = context.toInt()).items,
+                        detail.categoryName ?: "",
+                        context,
+                    )
+                    else -> {
+                        val inPrimary = primary?.let { api.channels(playlistId, listId = it.id).items }
+                        if (inPrimary != null && inPrimary.any { it.id == detail.id }) {
+                            Triple(inPrimary, primary.name, "list:${primary.id}")
+                        } else {
+                            Triple(api.channels(playlistId, categoryId = detail.categoryId).items, detail.categoryName ?: "", detail.categoryId?.toString())
+                        }
+                    }
                 }
+                lastList = channels
+                lastLabel = label
+                lastContext = used
             }
             row = if (primary != null) {
+                rowContext = "list:${primary.id}"
                 primary.name to api.channels(playlistId, listId = primary.id, limit = 24).items
             } else {
                 api.categories(playlistId).firstOrNull { it.enabledCount > 1 }?.let {
+                    rowContext = it.id.toString()
                     it.name to api.channels(playlistId, categoryId = it.id, limit = 24).items
                 }
             }
@@ -107,7 +132,7 @@ fun HomeScreen(session: Session, lastChannelId: Int?, onWatch: (Watching) -> Uni
                     .focusRing(RoundedCornerShape(16.dp)) {
                         if (current != null) {
                             val index = lastList.indexOfFirst { it.id == current.id }.coerceAtLeast(0)
-                            if (lastList.isNotEmpty()) onWatch(Watching(lastList, index, lastLabel))
+                            if (lastList.isNotEmpty()) onWatch(Watching(lastList, index, lastLabel, lastContext))
                         }
                     },
                 contentAlignment = Alignment.Center,
@@ -148,13 +173,13 @@ fun HomeScreen(session: Session, lastChannelId: Int?, onWatch: (Watching) -> Uni
         if (favs != null && favs.isEmpty()) {
             Text(stringResource(R.string.no_favorites), color = Casa.muted, fontSize = 15.sp)
         } else if (favs != null) {
-            ChannelRow(session, favs, guide) { index -> onWatch(Watching(favs, index, favoritesLabel)) }
+            ChannelRow(session, favs, guide) { index -> onWatch(Watching(favs, index, favoritesLabel, "favorites")) }
         }
 
         row?.let { (label, channels) ->
             if (channels.isNotEmpty()) {
                 Text(label, color = Casa.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-                ChannelRow(session, channels, guide) { index -> onWatch(Watching(channels, index, label)) }
+                ChannelRow(session, channels, guide) { index -> onWatch(Watching(channels, index, label, rowContext)) }
             }
         }
     }
