@@ -5,7 +5,18 @@ import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.content.ContextWrapper
 import android.content.res.Resources
+import android.os.Build
 import android.os.Bundle
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.core.content.ContextCompat
+import nl.casazapp.tv.playback.LocalInPip
+import nl.casazapp.tv.playback.PipCommand
+import nl.casazapp.tv.playback.Playback
 import java.util.Locale
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
@@ -44,8 +55,21 @@ private const val COMPACT_WIDTH_DP = 600
 private const val PHONE_DESIGN_WIDTH_DP = 440f
 
 class MainActivity : ComponentActivity() {
+    private var inPip by mutableStateOf(false)
+    /** The player was paused because the app went out of sight; it plays again on return. */
+    private var pausedOnStop = false
+
+    // The buttons of the picture-in-picture window (#62).
+    private val pipButtons = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val command = intent.getStringExtra(Playback.EXTRA)?.let { runCatching { PipCommand.valueOf(it) }.getOrNull() }
+            command?.let { Playback.commands.tryEmit(it) }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ContextCompat.registerReceiver(this, pipButtons, IntentFilter(Playback.ACTION), ContextCompat.RECEIVER_NOT_EXPORTED)
         val store = ConnectionStore(applicationContext)
         val isTelevision = getSystemService(UiModeManager::class.java)
             ?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
@@ -66,8 +90,46 @@ class MainActivity : ComponentActivity() {
                     ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                 }
             }
-            Localized(language.first()) { FormScale(tv) { App(store) } }
+            Localized(language.first()) {
+                FormScale(tv) { CompositionLocalProvider(LocalInPip provides inPip) { App(store) } }
+            }
         }
+    }
+
+    // Before Android 12 the window is opened here; from 12 on, the params' auto-enter does it.
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (Build.VERSION.SDK_INT in Build.VERSION_CODES.O until Build.VERSION_CODES.S && Playback.pipAllowed && Playback.player != null) {
+            Playback.pipParams(this)?.let { runCatching { enterPictureInPictureMode(it) } }
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        inPip = isInPictureInPictureMode
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // Back from sound only, or from elsewhere: the picture returns and the channel plays on.
+        Playback.stopAudioOnly(this)
+        if (pausedOnStop) Playback.player?.play()
+        pausedOnStop = false
+    }
+
+    // Out of sight without picture-in-picture or sound only: the sound stops too.
+    override fun onStop() {
+        super.onStop()
+        val player = Playback.player
+        if (player != null && !Playback.audioOnly.value && player.isPlaying) {
+            player.pause()
+            pausedOnStop = true
+        }
+    }
+
+    override fun onDestroy() {
+        unregisterReceiver(pipButtons)
+        super.onDestroy()
     }
 }
 

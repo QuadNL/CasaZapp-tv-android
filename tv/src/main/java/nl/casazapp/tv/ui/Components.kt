@@ -145,9 +145,9 @@ fun CasaButton(
 }
 
 @Composable
-fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
+fun Chip(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
-        Modifier
+        modifier
             .focusRing(RoundedCornerShape(50), onClick = onClick)
             .background(if (selected) Casa.text else Color.Transparent, RoundedCornerShape(50))
             .border(1.dp, Casa.line, RoundedCornerShape(50))

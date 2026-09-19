@@ -87,4 +87,11 @@
     <string name="file_chosen">Gekozen: %1$s</string>
     <string name="favorite_add">Toevoegen aan favorieten</string>
     <string name="favorite_remove">Verwijderen uit favorieten</string>
+    <string name="previous_channel">Vorige zender</string>
+    <string name="next_channel">Volgende zender</string>
+    <string name="audio_only">Alleen geluid</string>
+    <string name="pip_setting">Beeld-in-beeld</string>
+    <string name="pip_hint">Ga je tijdens het kijken naar een andere app, dan speelt de zender door in een klein venster. Met de koptelefoonknop gaat alleen het geluid door.</string>
+    <string name="on">Aan</string>
+    <string name="off">Uit</string>
 </resources>

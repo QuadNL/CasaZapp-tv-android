@@ -2,6 +2,7 @@
 
 package nl.casazapp.tv.ui
 
+import androidx.compose.runtime.LaunchedEffect
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -107,6 +108,11 @@ fun LocalSetupScreen(initial: LocalPlaylist?, onSaved: (LocalPlaylist) -> Unit, 
     var failed by remember { mutableStateOf(false) }
     val xtream = type == LocalPlaylist.XTREAM
     val file = type == LocalPlaylist.M3U_FILE
+    // On a TV the remote needs somewhere to start: the chosen playlist type (#80).
+    val tv = LocalForm.current.tv
+    val first = remember { androidx.compose.ui.focus.FocusRequester() }
+    androidx.compose.runtime.LaunchedEffect(Unit) { if (tv) runCatching { first.requestFocus() } }
+    val focusIf = { chosen: Boolean -> if (chosen) Modifier.focusRequester(first) else Modifier }
     var fileName by remember { mutableStateOf(if (initial?.type == LocalPlaylist.M3U_FILE) File(initial.url).name else "") }
     val complete = if (file) {
         url.startsWith("/")
@@ -164,12 +170,12 @@ fun LocalSetupScreen(initial: LocalPlaylist?, onSaved: (LocalPlaylist) -> Unit, 
             Text(stringResource(R.string.local_title), color = Casa.text, fontSize = 26.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
             Text(stringResource(R.string.local_hint), color = Casa.muted, fontSize = 15.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Chip("Xtream Codes", xtream) { type = LocalPlaylist.XTREAM }
-                Chip("M3U-URL", type == LocalPlaylist.M3U) {
+                Chip("Xtream Codes", xtream, focusIf(initial?.type == null || initial.type == LocalPlaylist.XTREAM)) { type = LocalPlaylist.XTREAM }
+                Chip("M3U-URL", type == LocalPlaylist.M3U, focusIf(initial?.type == LocalPlaylist.M3U)) {
                     type = LocalPlaylist.M3U
                     if (url.startsWith("/")) url = "http://"
                 }
-                Chip(stringResource(R.string.m3u_file), file) { type = LocalPlaylist.M3U_FILE }
+                Chip(stringResource(R.string.m3u_file), file, focusIf(initial?.type == LocalPlaylist.M3U_FILE)) { type = LocalPlaylist.M3U_FILE }
             }
             Field(stringResource(R.string.playlist_name), name, { name = it })
             if (file) {

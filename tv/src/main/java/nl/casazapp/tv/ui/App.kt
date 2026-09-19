@@ -72,11 +72,13 @@ fun App(store: ConnectionStore) {
     val connection by store.connection.collectAsState(initial = null)
     val lastChannel by store.lastChannel.collectAsState(initial = null)
     val uiMode by store.uiMode.collectAsState(initial = UiMode.AUTO)
+    val pip by store.pip.collectAsState(initial = true)
     // Wrapped, so "not loaded yet" differs from "not chosen yet".
     val sourceMode by remember { store.sourceMode.map { listOf(it) } }.collectAsState(initial = null)
     val localPlaylist by store.localPlaylist.collectAsState(initial = null)
     val locale by store.locale.collectAsState(initial = null)
     var editLocal by remember { mutableStateOf(false) }
+    var backFromEdit by remember { mutableStateOf(false) }
     var update by remember { mutableStateOf<Updater.Release?>(null) }
     LaunchedEffect(Unit) { update = Updater.newer() }
     val context = LocalContext.current
@@ -112,9 +114,17 @@ fun App(store: ConnectionStore) {
                     initial = local,
                     onSaved = {
                         scope.launch { store.saveLocalPlaylist(it) }
+                        backFromEdit = editLocal
                         editLocal = false
                     },
-                    onBack = { if (editLocal) editLocal = false else scope.launch { store.saveSourceMode(null) } },
+                    onBack = {
+                        if (editLocal) {
+                            backFromEdit = true
+                            editLocal = false
+                        } else {
+                            scope.launch { store.saveSourceMode(null) }
+                        }
+                    },
                 )
                 return@Box
             }
@@ -149,7 +159,7 @@ fun App(store: ConnectionStore) {
             when (route) {
                 Route.Home -> HomeScreen(session, lastChannel, onWatch = { watching = it })
                 Route.Live -> LiveScreen(session, onWatch = { watching = it })
-                Route.Playlists -> PlaylistsScreen(session, local, onEditLocal = { editLocal = true })
+                Route.Playlists -> PlaylistsScreen(session, local, onEditLocal = { backFromEdit = false; editLocal = true }, focusChange = backFromEdit)
                 Route.Settings -> SettingsScreen(
                     mode = mode!!,
                     serverUrl = current?.serverUrl,
@@ -157,6 +167,8 @@ fun App(store: ConnectionStore) {
                     onLocale = { scope.launch { store.saveLocale(it) } },
                     uiMode = uiMode,
                     onUiMode = { scope.launch { store.saveUiMode(it) } },
+                    pip = pip,
+                    onPip = { scope.launch { store.savePip(it) } },
                     onUnpair = { scope.launch { store.clear() } },
                     onSwitchMode = { scope.launch { store.saveSourceMode(it) } },
                     onCheckUpdate = { Updater.newer().also { update = it } != null },

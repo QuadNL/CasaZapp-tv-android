@@ -2,6 +2,15 @@
 
 package nl.casazapp.tv.ui
 
+import nl.casazapp.tv.playback.Playback
+import nl.casazapp.tv.playback.PipCommand
+import nl.casazapp.tv.playback.LocalInPip
+import nl.casazapp.core.store.ConnectionStore
+import androidx.media3.common.VideoSize
+import androidx.media3.common.C
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.collectAsState
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -83,6 +92,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -126,6 +136,10 @@ fun PlayerScreen(
     val channels = watching.channels
     val channel = channels[watching.index]
     val player = remember { ExoPlayer.Builder(context).build() }
+    val inPip = LocalInPip.current
+    val pipSetting by remember { ConnectionStore(context.applicationContext) }.pip.collectAsState(initial = true)
+    // A stream with sound but no picture is radio: then the headphones are in the OSD too (#62).
+    var radio by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
     var osd by remember { mutableStateOf(true) }
     var osdAt by remember { mutableLongStateOf(0L) }
@@ -158,21 +172,73 @@ fun PlayerScreen(
         onZap((watching.index + step + channels.size) % channels.size)
     }
 
+    // Picture-in-picture on phones and tablets (#62): the window's buttons zap or keep only the sound.
+    val activity = remember(context) { context.findActivity() }
+    // Values, not the zap function: a function reference kept here stayed at the first channel,
+    // so the window's buttons zapped only one step.
+    val currentWatching by rememberUpdatedState(watching)
+    val currentOnZap by rememberUpdatedState(onZap)
+    fun zapFromWindow(step: Int) {
+        val w = currentWatching
+        currentOnZap((w.index + step + w.channels.size) % w.channels.size)
+    }
+    LaunchedEffect(tvLook, pipSetting) {
+        Playback.pipAllowed = !tvLook && pipSetting
+        Playback.updatePip(activity)
+    }
+    LaunchedEffect(Unit) {
+        Playback.commands.collect { command ->
+            when (command) {
+                PipCommand.PREVIOUS -> zapFromWindow(-1)
+                PipCommand.NEXT -> zapFromWindow(1)
+                PipCommand.AUDIO_ONLY -> activity?.let { Playback.startAudioOnly(it) }
+            }
+        }
+    }
+    val audioOnlyButton: (() -> Unit)? = if (!tvLook && radio) {
+        { activity?.let { Playback.startAudioOnly(it) } }
+    } else {
+        null
+    }
+
     DisposableEffect(Unit) {
         val listener = object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
                 failed = true
             }
+
+            // The first report of a stream often lists only its sound, so radio is judged after a
+            // few seconds of playing without a picture, and a picture ends it at once.
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (!isPlaying) return
+                scope.launch {
+                    delay(3_000)
+                    radio = player.isPlaying && player.videoSize.width == 0 &&
+                        player.currentTracks.containsType(C.TRACK_TYPE_AUDIO)
+                }
+            }
+
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                if (videoSize.width > 0) radio = false
+            }
         }
         player.addListener(listener)
+        Playback.player = player
         onDispose {
             player.removeListener(listener)
+            if (Playback.player === player) {
+                Playback.stopAudioOnly(context.applicationContext)
+                Playback.player = null
+                Playback.pipAllowed = false
+                Playback.updatePip(context.findActivity())
+            }
             player.release()
         }
     }
 
     LaunchedEffect(channel.id) {
         failed = false
+        radio = false
         guide = null
         detail = null
         favorite = channel.favorite
@@ -184,6 +250,8 @@ fun PlayerScreen(
                 .apply { stream.userAgent?.let { setUserAgent(it) } }
             val item = MediaItem.Builder()
                 .setUri(stream.url)
+                // The channel's name in the notification and on the lock screen (sound only, #62).
+                .setMediaMetadata(MediaMetadata.Builder().setTitle(channel.name).setArtist("CasaZapp TV").build())
                 .apply { if (stream.format != "ts") setMimeType(MimeTypes.APPLICATION_M3U8) }
                 .build()
             player.setMediaSource(DefaultMediaSourceFactory(http).createMediaSource(item))
@@ -203,7 +271,6 @@ fun PlayerScreen(
     BackHandler { if (guideOpen) guideOpen = false else onBack() }
 
     // Phones and tablets may turn the screen from the player; leaving it gives the choice back to the sensor.
-    val activity = remember(context) { context.findActivity() }
     DisposableEffect(tvLook) {
         onDispose { if (!tvLook) activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
     }
@@ -254,6 +321,7 @@ fun PlayerScreen(
                 showOsd()
             },
             onRotate = if (tvLook) null else ::rotate,
+            onAudioOnly = audioOnlyButton,
             onLeave = { hideOsd() },
             modifier = modifier,
         )
@@ -345,6 +413,7 @@ fun PlayerScreen(
                                 showOsd()
                             },
                             onRotate = ::rotate,
+                            onAudioOnly = audioOnlyButton,
                         )
                     }
                 }
@@ -406,6 +475,17 @@ fun PlayerScreen(
                 if (!inPicture) osdPanel(Modifier.align(Alignment.BottomStart), true)
             }
         } }
+
+    // In the floating window only the picture shows; its buttons zap and switch to sound only.
+    if (inPip) {
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            AndroidView(
+                factory = { ctx -> PlayerView(ctx).apply { useController = false; this.player = player } },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        return
+    }
 
     if (favoriteMenu) {
         FavoritePrompt(
@@ -588,6 +668,7 @@ private fun Osd(
     onFavorite: () -> Unit,
     onVolume: ((Float) -> Unit)?,
     onRotate: (() -> Unit)?,
+    onAudioOnly: (() -> Unit)?,
     onLeave: () -> Unit,
     modifier: Modifier,
 ) {
@@ -607,6 +688,7 @@ private fun Osd(
         ) {
             if (onVolume != null) VolumeControl(volume, onVolume)
             onRotate?.let { OsdButton(Icons.rotate, Color.White, Modifier, it) }
+            onAudioOnly?.let { OsdButton(ImageVector.vectorResource(R.drawable.pip_headphones), Color.White, Modifier, it) }
             OsdButton(if (favorite) Icons.starFilled else Icons.star, if (favorite) Casa.accent else Color.White, Modifier.focusRequester(firstControl), onFavorite)
             OsdButton(Icons.guide, Casa.accent, Modifier, onGuide)
         }
@@ -650,6 +732,7 @@ private fun PictureOsd(
     onFavorite: () -> Unit,
     onVolume: (Float) -> Unit,
     onRotate: () -> Unit,
+    onAudioOnly: (() -> Unit)?,
 ) {
     var sliderOpen by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
@@ -671,6 +754,7 @@ private fun PictureOsd(
                     guide?.now?.let { Text(it.title, color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                 }
                 OsdButton(if (volume == 0f) Icons.muted else Icons.volume, Color.White, Modifier) { sliderOpen = !sliderOpen }
+                onAudioOnly?.let { OsdButton(ImageVector.vectorResource(R.drawable.pip_headphones), Color.White, Modifier, it) }
                 OsdButton(Icons.rotate, Color.White, Modifier, onRotate)
             }
             guide?.now?.let { ProgressBar(progressOf(it), Modifier.padding(top = 4.dp, end = 8.dp).fillMaxWidth()) }

@@ -40,6 +40,8 @@ fun SettingsScreen(
     onLocale: (String?) -> Unit,
     uiMode: UiMode,
     onUiMode: (UiMode) -> Unit,
+    pip: Boolean,
+    onPip: (Boolean) -> Unit,
     onUnpair: () -> Unit,
     onSwitchMode: (SourceMode) -> Unit,
     onCheckUpdate: suspend () -> Boolean,
@@ -84,6 +86,20 @@ fun SettingsScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(UiMode.AUTO to R.string.display_auto, UiMode.TV to R.string.display_tv, UiMode.MOBILE to R.string.display_mobile)
                     .forEach { (mode, label) -> Chip(stringResource(label), uiMode == mode) { onUiMode(mode) } }
+            }
+        }
+
+        // A TV has no floating windows; on phones and tablets the player can shrink into one (#62).
+        if (!LocalForm.current.tv) {
+            Section {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.pip_setting), color = Casa.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Chip(stringResource(R.string.on), pip) { onPip(true) }
+                        Chip(stringResource(R.string.off), !pip) { onPip(false) }
+                    }
+                }
+                Text(stringResource(R.string.pip_hint), color = Casa.muted, fontSize = 14.sp)
             }
         }
 

@@ -3,6 +3,7 @@ package nl.casazapp.core.store
 import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -22,6 +23,7 @@ private val SOURCE_MODE = stringPreferencesKey("source_mode")
 private val LOCALE = stringPreferencesKey("locale")
 private val LOCAL_PLAYLIST = stringPreferencesKey("local_playlist")
 private val LOCAL_PASSWORD = stringPreferencesKey("local_password")
+private val PIP = booleanPreferencesKey("pip")
 
 /** Where channels come from. Null until the user chose at first launch. */
 enum class SourceMode { SERVER, LOCAL }
@@ -58,6 +60,13 @@ class ConnectionStore(private val context: Context) {
     }
 
     /** "nl" or "en"; null follows the device language. Wrapped so "not loaded" differs from null. */
+    /** Picture-in-picture when leaving the player on a phone or tablet (#62); on unless switched off. */
+    val pip: Flow<Boolean> = context.dataStore.data.map { it[PIP] ?: true }
+
+    suspend fun savePip(on: Boolean) {
+        context.dataStore.edit { it[PIP] = on }
+    }
+
     val locale: Flow<List<String?>> = context.dataStore.data.map { listOf(it[LOCALE]) }
 
     suspend fun saveLocale(tag: String?) {

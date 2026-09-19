@@ -2,6 +2,7 @@
 
 package nl.casazapp.tv.ui
 
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -37,7 +38,14 @@ import nl.casazapp.tv.R
  * app gets. In local mode the playlist lives here, so refreshing and changing it are here too.
  */
 @Composable
-fun PlaylistsScreen(session: Session, localPlaylist: LocalPlaylist?, onEditLocal: () -> Unit) {
+fun PlaylistsScreen(
+    session: Session,
+    localPlaylist: LocalPlaylist?,
+    onEditLocal: () -> Unit,
+    /** Back from editing the playlist: the button that opened it gets the focus again (#80). */
+    focusChange: Boolean = false,
+) {
+    val change = remember { androidx.compose.ui.focus.FocusRequester() }
     val scope = rememberCoroutineScope()
     val compact = LocalForm.current.compact
     var playlists by remember { mutableStateOf<List<Playlist>?>(null) }
@@ -84,7 +92,13 @@ fun PlaylistsScreen(session: Session, localPlaylist: LocalPlaylist?, onEditLocal
                                 load()
                             }
                         }
-                        CasaButton(stringResource(R.string.change_playlist), primary = false, onClick = onEditLocal)
+                        CasaButton(
+                            stringResource(R.string.change_playlist),
+                            Modifier.focusRequester(change),
+                            primary = false,
+                            onClick = onEditLocal,
+                        )
+                        LaunchedEffect(focusChange) { if (focusChange) runCatching { change.requestFocus() } }
                     }
                 }
             }
