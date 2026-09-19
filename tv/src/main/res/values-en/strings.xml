@@ -79,4 +79,9 @@
     <string name="exit_title">Close CasaZapp TV?</string>
     <string name="exit_stay">Cancel</string>
     <string name="exit_close">Close</string>
+    <string name="categories">Categories (%1$d)</string>
+    <string name="search_category">Search a category</string>
+    <string name="m3u_file">File</string>
+    <string name="choose_file">Choose file</string>
+    <string name="file_chosen">Chosen: %1$s</string>
 </resources>

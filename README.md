@@ -52,7 +52,7 @@ De APK staat daarna in `tv/build/outputs/apk/debug/tv-debug.apk`.
 
 ## Releases en updates
 
-- Elke push naar `main` is een **build**: de workflow `Android` bouwt een ondertekende APK en maakt een GitHub-release `build-N` met `casazapp-tv.apk`, met als titel datum en runnummer: `260918-8`. De tag blijft `build-N`, omdat oudere versies van de app alleen die vorm lezen. Het runnummer is de `versionCode` en bepaalt wat nieuwer is; er zijn (nog) geen versienummers.
+- Elke push naar `main` is een **build**: de workflow `Android` bouwt een ondertekende APK en maakt een GitHub-release `v0.MINOR.PATCH` met `casazapp-tv.apk`. MINOR staat in `app-version.txt` en verhoog je met de hand bij een merkbare stap; PATCH telt automatisch door (0.2.1, 0.2.2, …) en begint bij een nieuwe MINOR weer bij 1. Intern telt Android met het runnummer (`versionCode`); dat bepaalt wat nieuwer is.
 - De app kijkt bij het starten, en via *Instellingen → Controleren op updates*, naar de laatste release. Is die nieuwer, dan staat er een melding met **Bijwerken**: de app downloadt de APK en Android vraagt om bevestiging. Dit staat los van de server: de app kan nieuwer zijn dan je Docker-image.
 - Ondertekenen gebeurt met één vaste sleutel. Zonder die sleutel kan een nieuwe build niet over de oude heen worden geïnstalleerd. De workflow leest hem uit twee repository-secrets:
   - `ANDROID_KEYSTORE`: de keystore in base64

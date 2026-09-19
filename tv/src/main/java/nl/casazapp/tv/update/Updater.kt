@@ -15,7 +15,7 @@ import nl.casazapp.tv.BuildConfig
 
 /**
  * Updates the app from the GitHub releases of CasaZapp-tv-android, independent of the server:
- * each release is tagged `build-N` (N is the version code) and titled date-run, e.g. `260918-8`.
+ * each release is tagged v0.MINOR.PATCH and carries version.txt with its version code.
  */
 object Updater {
     // Plain downloads of the latest release: no GitHub API, so no hourly limit per connection.
@@ -26,7 +26,7 @@ object Updater {
     /** The latest release when it is newer than this app; null when up to date or unreachable. */
     suspend fun newer(): Release? = withContext(Dispatchers.IO) {
         runCatching {
-            // version.txt holds "<versionCode> <name>", e.g. "10 260918-10".
+            // version.txt holds "<versionCode> <version>", e.g. "11 0.2.1".
             val (build, name) = open("$LATEST/version.txt").inputStream.bufferedReader().use { it.readText() }
                 .trim().split(' ', limit = 2)
             Release(build.toInt(), name, "$LATEST/casazapp-tv.apk")

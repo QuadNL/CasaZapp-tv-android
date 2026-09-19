@@ -46,6 +46,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import nl.casazapp.core.local.LocalPlaylist
 import nl.casazapp.core.local.LocalSource
 import nl.casazapp.core.store.SourceMode
@@ -98,7 +103,33 @@ fun LocalSetupScreen(initial: LocalPlaylist?, onSaved: (LocalPlaylist) -> Unit, 
     var busy by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
     val xtream = type == LocalPlaylist.XTREAM
-    val complete = url.length > "http://".length && (!xtream || (username.isNotBlank() && password.isNotBlank()))
+    val file = type == LocalPlaylist.M3U_FILE
+    var fileName by remember { mutableStateOf(if (initial?.type == LocalPlaylist.M3U_FILE) File(initial.url).name else "") }
+    val complete = if (file) {
+        url.startsWith("/")
+    } else {
+        url.length > "http://".length && (!xtream || (username.isNotBlank() && password.isNotBlank()))
+    }
+    // The chosen file is copied into the app's own storage, so it stays readable for later refreshes.
+    val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val copy = withContext(Dispatchers.IO) {
+                runCatching {
+                    val target = File(File(context.filesDir, "local").apply { mkdirs() }, "upload-${System.currentTimeMillis()}.m3u")
+                    context.contentResolver.openInputStream(uri)!!.use { input -> target.outputStream().use { input.copyTo(it) } }
+                    target
+                }.getOrNull()
+            }
+            if (copy != null) {
+                url = copy.absolutePath
+                fileName = uri.lastPathSegment?.substringAfterLast('/') ?: copy.name
+                if (name.isBlank()) name = fileName.substringBeforeLast('.')
+            } else {
+                failed = true
+            }
+        }
+    }
 
     fun save() {
         if (!complete || busy) return
@@ -131,10 +162,23 @@ fun LocalSetupScreen(initial: LocalPlaylist?, onSaved: (LocalPlaylist) -> Unit, 
             Text(stringResource(R.string.local_hint), color = Casa.muted, fontSize = 15.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Chip("Xtream Codes", xtream) { type = LocalPlaylist.XTREAM }
-                Chip("M3U-URL", !xtream) { type = LocalPlaylist.M3U }
+                Chip("M3U-URL", type == LocalPlaylist.M3U) {
+                    type = LocalPlaylist.M3U
+                    if (url.startsWith("/")) url = "http://"
+                }
+                Chip(stringResource(R.string.m3u_file), file) { type = LocalPlaylist.M3U_FILE }
             }
             Field(stringResource(R.string.playlist_name), name, { name = it })
-            Field(stringResource(if (xtream) R.string.server_url else R.string.m3u_url), url, { url = it }, KeyboardType.Uri)
+            if (file) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    CasaButton(stringResource(R.string.choose_file), primary = false) {
+                        runCatching { pickFile.launch(arrayOf("*/*")) }.onFailure { failed = true }
+                    }
+                    if (fileName.isNotEmpty()) Text(stringResource(R.string.file_chosen, fileName), color = Casa.muted, fontSize = 14.sp)
+                }
+            } else {
+                Field(stringResource(if (xtream) R.string.server_url else R.string.m3u_url), url, { url = it }, KeyboardType.Uri)
+            }
             if (xtream) {
                 Field(stringResource(R.string.username), username, { username = it })
                 Field(stringResource(R.string.password), password, { password = it }, KeyboardType.Password, secret = true)

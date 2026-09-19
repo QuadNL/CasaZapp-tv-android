@@ -52,6 +52,8 @@ data class LocalPlaylist(
     companion object {
         const val XTREAM = "xtream"
         const val M3U = "m3u"
+        /** An M3U file picked on the device; [url] is its copy in the app's own storage. */
+        const val M3U_FILE = "m3u_file"
     }
 }
 
@@ -152,13 +154,20 @@ class LocalSource(dir: File, private val playlist: LocalPlaylist) : TvSource {
         val channels = (xtream("get_live_streams") as? JsonArray).orEmpty().mapNotNull {
             val o = it.jsonObject
             val id = o["stream_id"].text()?.toIntOrNull() ?: return@mapNotNull null
-            StoredChannel(id, o["name"].text() ?: "", o["stream_icon"].text(), o["category_id"].text()?.toIntOrNull(), id.toString())
+            // Some providers leave category_id empty and list the categories in category_ids.
+            val category = o["category_id"].text()?.toIntOrNull()
+                ?: (o["category_ids"] as? JsonArray)?.firstOrNull()?.text()?.toIntOrNull()
+            StoredChannel(id, o["name"].text() ?: "", o["stream_icon"].text(), category, id.toString())
         }
         return catalogueOf(cats, channels)
     }
 
     private suspend fun fetchM3u(): Catalogue {
-        val text = client.get(playlist.url.trim()).bodyAsText()
+        val text = if (playlist.type == LocalPlaylist.M3U_FILE) {
+            File(playlist.url).readText()
+        } else {
+            client.get(playlist.url.trim()).bodyAsText()
+        }
         val groups = LinkedHashMap<String, Int>()
         val channels = mutableListOf<StoredChannel>()
         var pending: Pair<String, Map<String, String>>? = null

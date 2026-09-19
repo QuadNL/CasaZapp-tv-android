@@ -19,6 +19,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -39,6 +41,7 @@ import nl.casazapp.tv.R
 @Composable
 fun LiveScreen(session: Session, onWatch: (Watching) -> Unit) {
     val state = rememberChannelFilter(session)
+    val scope = rememberCoroutineScope()
     val form = LocalForm.current
     var timeline by rememberSaveable { mutableStateOf(true) }
     val label = state.label()
@@ -60,7 +63,7 @@ fun LiveScreen(session: Session, onWatch: (Watching) -> Unit) {
             Text(stringResource(R.string.nav_live), color = Casa.text, fontSize = if (form.compact) 24.sp else 32.sp, fontFamily = CasaFonts.display, fontWeight = FontWeight.SemiBold)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 state.channels?.let {
-                    Text(stringResource(R.string.channel_count, it.size), color = Casa.muted, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.channel_count, state.total), color = Casa.muted, fontSize = 15.sp, modifier = Modifier.weight(1f))
                 }
                 // Timeline or list, like the switch on the web.
                 switch()
@@ -72,9 +75,12 @@ fun LiveScreen(session: Session, onWatch: (Watching) -> Unit) {
         when {
             state.failed -> Text(stringResource(R.string.connect_failed), color = Casa.live)
             current == null -> Text(stringResource(R.string.loading), color = Casa.muted)
-            timeline -> LiveTimeline(session, current) { index -> onWatch(Watching(current, index, label)) }
+            timeline -> LiveTimeline(session, current, onNearEnd = { scope.launch { state.loadMore(session) } }) { index ->
+                onWatch(Watching(current, index, label))
+            }
             else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 itemsIndexed(current, key = { _, c -> c.id }) { index, channel ->
+                    if (index >= current.size - 20) LaunchedEffect(current.size) { state.loadMore(session) }
                     ChannelRow(index + 1, channel, state.guide[channel.id.toString()], session) {
                         onWatch(Watching(current, index, label))
                     }

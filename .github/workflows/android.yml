@@ -35,8 +35,14 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
-      - name: Build name
-        run: echo "BUILD_DATE=$(TZ=Europe/Amsterdam date +%y%m%d)" >> "$GITHUB_ENV"
+      - name: Version
+        # MINOR is set by hand in app-version.txt; PATCH counts the releases of that MINOR, so a new MINOR starts at .1.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          MINOR=$(tr -d '[:space:]' < app-version.txt)
+          DONE=$(gh release list --limit 1000 --json tagName --jq "[.[] | select(.tagName | startswith(\"v$MINOR.\"))] | length")
+          echo "APP_VERSION=$MINOR.$((DONE + 1))" >> "$GITHUB_ENV"
       - name: Signing key
         env:
           ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
@@ -56,7 +62,7 @@ jobs:
         run: |
           cp tv/build/outputs/apk/release/tv-release.apk casazapp-tv.apk
           # Read by the app without the rate-limited API: "<versionCode> <name>".
-          echo "$BUILD_NUMBER $BUILD_DATE-$BUILD_NUMBER" > version.txt
-          gh release create "build-$BUILD_NUMBER" casazapp-tv.apk version.txt \
-            --title "$BUILD_DATE-$BUILD_NUMBER" \
+          echo "$BUILD_NUMBER $APP_VERSION" > version.txt
+          gh release create "v$APP_VERSION" casazapp-tv.apk version.txt \
+            --title "$APP_VERSION" \
             --notes "$(git log -1 --pretty=%s)"

@@ -80,4 +80,9 @@
     <string name="exit_title">CasaZapp TV sluiten?</string>
     <string name="exit_stay">Annuleren</string>
     <string name="exit_close">Sluiten</string>
+    <string name="categories">Categorieën (%1$d)</string>
+    <string name="search_category">Zoek een categorie</string>
+    <string name="m3u_file">Bestand</string>
+    <string name="choose_file">Bestand kiezen</string>
+    <string name="file_chosen">Gekozen: %1$s</string>
 </resources>

@@ -13,8 +13,8 @@ android {
         targetSdk = 36
         // The CI run number: it only goes up, which Android requires for an update. Local builds are 1.
         versionCode = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1
-        // Shown as date-run, e.g. 260918-7; the run number alone decides what is newer.
-        versionName = "${System.getenv("BUILD_DATE") ?: "dev"}-$versionCode"
+        // 0.MINOR.PATCH from the release workflow (see app-version.txt); the run number above decides what is newer.
+        versionName = System.getenv("APP_VERSION") ?: "dev"
         // The commit the build came from, shown next to the version in Settings.
         buildConfigField("String", "COMMIT", "\"${System.getenv("GITHUB_SHA")?.take(7) ?: "local"}\"")
     }

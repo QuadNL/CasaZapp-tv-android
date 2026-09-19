@@ -423,7 +423,12 @@ fun PlayerScreen(
                             Text(stringResource(R.string.loading), color = Casa.muted)
                         } else {
                             val here = list.indexOfFirst { it.id == channel.id }.takeIf { it >= 0 }
-                            LiveTimeline(session, list, focusIndex = here ?: 0) { index ->
+                            LiveTimeline(
+                                session,
+                                list,
+                                focusIndex = here ?: 0,
+                                onNearEnd = { scope.launch { filter.loadMore(session) } },
+                            ) { index ->
                                 guideOpen = false
                                 when {
                                     list === channels -> if (index != watching.index) onZap(index)
@@ -450,6 +455,7 @@ fun PlayerScreen(
                     session = session,
                     watching = watching,
                     onPick = { index -> onZap(index) },
+                    onSwitch = { guideOpen = false; onSwitch(it) },
                     onClose = { guideOpen = false },
                     narrow = true,
                     modifier = Modifier.fillMaxWidth().height(guideHeight),
@@ -727,35 +733,46 @@ private fun GuidePanel(
     session: Session,
     watching: Watching,
     onPick: (Int) -> Unit,
+    /** A channel from another list than the one being watched, picked with the chips. */
+    onSwitch: (Watching) -> Unit,
     modifier: Modifier,
     narrow: Boolean = false,
     onClose: (() -> Unit)? = null,
 ) {
-    val channels = watching.channels
+    val scope = rememberCoroutineScope()
+    // The same chips as Live TV and the TV guide: your list, favourites, categories.
+    val filter = rememberChannelFilter(session, watching.channels, watching.label)
+    val label = filter.label()
+    val channels = filter.channels ?: watching.channels
+    val playingId = watching.channels[watching.index].id
+    val playingIndex = channels.indexOfFirst { it.id == playingId }
     // Narrow: null shows the channel list; a channel shows its programmes.
     var selected by remember { mutableStateOf<Int?>(if (narrow) null else watching.index) }
-    val shown = selected ?: watching.index
+    LaunchedEffect(channels) { if (narrow) selected = null }
+    val shown = (selected ?: playingIndex).coerceIn(0, (channels.size - 1).coerceAtLeast(0))
     var programmes by remember { mutableStateOf<List<Programme>?>(null) }
-    var nowNext by remember { mutableStateOf<Map<String, NowNext>>(emptyMap()) }
+    val nowNext = filter.guide
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = (watching.index - 3).coerceAtLeast(0))
-
-    LaunchedEffect(Unit) {
-        nowNext = runCatching { session.api.nowNext(channels.map { it.id }) }.getOrDefault(emptyMap())
+    fun pick(index: Int) {
+        if (channels === watching.channels) onPick(index) else onSwitch(Watching(channels, index, label))
     }
-    LaunchedEffect(shown) {
+
+    LaunchedEffect(shown, channels) {
         programmes = null
-        programmes = runCatching { session.api.guide(channels[shown].id) }.getOrDefault(emptyList())
+        val channel = channels.getOrNull(shown) ?: return@LaunchedEffect
+        programmes = runCatching { session.api.guide(channel.id) }.getOrDefault(emptyList())
     }
 
     val channelList: @Composable (Modifier) -> Unit = { size ->
         LazyColumn(size, state = listState) {
             itemsIndexed(channels, key = { _, c -> c.id }) { index, c ->
-                val isPlaying = index == watching.index
+                if (index >= channels.size - 20) LaunchedEffect(channels.size) { filter.loadMore(session) }
+                val isPlaying = index == playingIndex
                 Row(
                     Modifier
                         .fillMaxWidth()
                         .focusRing(RoundedCornerShape(0.dp)) {
-                            if (shown == index && (!narrow || selected != null)) onPick(index) else selected = index
+                            if (shown == index && (!narrow || selected != null)) pick(index) else selected = index
                         }
                         .background(if (index == shown && !narrow) Casa.raised else Color.Transparent)
                         .padding(horizontal = 12.dp, vertical = 7.dp),
@@ -777,11 +794,11 @@ private fun GuidePanel(
 
     val programmeList: @Composable (Modifier) -> Unit = { size ->
         Column(size) {
-            if (shown != watching.index) {
+            if (shown != playingIndex && channels.isNotEmpty()) {
                 CasaButton(
                     stringResource(R.string.watch_channel, channels[shown].name),
                     Modifier.padding(12.dp).fillMaxWidth(),
-                ) { onPick(shown) }
+                ) { pick(shown) }
             }
             val list = programmes
             if (list != null && list.isEmpty()) {
@@ -815,7 +832,7 @@ private fun GuidePanel(
                 }
             }
             Text(
-                if (narrow && selected != null) channels[shown].name else stringResource(R.string.guide),
+                if (narrow && selected != null) channels.getOrNull(shown)?.name ?: "" else stringResource(R.string.guide),
                 color = Casa.text,
                 fontSize = 15.sp,
                 fontFamily = CasaFonts.display,
@@ -824,19 +841,13 @@ private fun GuidePanel(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            Text(
-                watching.label,
-                color = Casa.muted,
-                fontSize = 12.sp,
-                maxLines = 1,
-                modifier = Modifier.border(1.dp, Casa.line, RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 3.dp),
-            )
             onClose?.let {
                 Box(Modifier.size(32.dp).focusRing(CircleShape, onClick = it), contentAlignment = Alignment.Center) {
                     Icon(Icons.close, Casa.muted, 18.dp)
                 }
             }
         }
+        if (selected == null || !narrow) FilterChips(filter, Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp))
         if (narrow) {
             if (selected == null) channelList(Modifier.fillMaxSize()) else programmeList(Modifier.fillMaxSize())
         } else {

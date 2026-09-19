@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import java.time.Instant
 import kotlinx.coroutines.delay
+import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.focus.FocusRequester
@@ -68,11 +69,18 @@ private fun windowStart(): Instant {
  * channel; on a TV, left and right move through the hours.
  */
 @Composable
-fun LiveTimeline(session: Session, channels: List<Channel>, focusIndex: Int? = null, onPlay: (Int) -> Unit) {
+fun LiveTimeline(
+    session: Session,
+    channels: List<Channel>,
+    focusIndex: Int? = null,
+    /** Called when the rows near the end come into view, to load the next page of channels. */
+    onNearEnd: (() -> Unit)? = null,
+    onPlay: (Int) -> Unit,
+) {
     val form = LocalForm.current
     val scope = rememberCoroutineScope()
     val from = remember { windowStart() }
-    var grid by remember { mutableStateOf<Map<String, List<Programme>>?>(null) }
+    var grid by remember { mutableStateOf<Map<String, List<Programme>>>(emptyMap()) }
     val scroll = rememberScrollState()
     val rows = rememberLazyListState(initialFirstVisibleItemIndex = ((focusIndex ?: 0) - 2).coerceAtLeast(0))
     val focusRow = remember { FocusRequester() }
@@ -89,9 +97,21 @@ fun LiveTimeline(session: Session, channels: List<Channel>, focusIndex: Int? = n
     val rowHeight: Dp = if (form.tv) 68.dp else 58.dp
     val slotPx = with(LocalDensity.current) { (perMin * SLOT_MIN).toPx() }
 
+    // The guide of the rows in view (and a bit beyond), not of all channels: a playlist can have tens of thousands.
+    val asked = remember { mutableSetOf<Int>() }
     LaunchedEffect(channels) {
-        grid = null
-        grid = runCatching { session.api.grid(channels.map { it.id }, from, HOURS) }.getOrDefault(emptyMap())
+        snapshotFlow { rows.firstVisibleItemIndex to (rows.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0) }
+            .collect { (first, last) ->
+                if (last >= channels.size - 20) onNearEnd?.invoke()
+                val wanted = channels.subList((first - 10).coerceAtLeast(0), (last + 40).coerceAtMost(channels.size))
+                    .map { it.id }
+                    .filter { it !in asked }
+                if (wanted.isEmpty()) return@collect
+                asked += wanted
+                val found = runCatching { session.api.grid(wanted, from, HOURS) }.getOrDefault(emptyMap())
+                // Channels without any programme still count as asked, so they show "no guide".
+                grid = grid + wanted.associate { it.toString() to (found[it.toString()] ?: emptyList()) }
+            }
     }
 
     fun x(at: Instant): Dp = perMin * ((at.toEpochMilli() - from.toEpochMilli()) / 60_000f)
@@ -123,8 +143,8 @@ fun LiveTimeline(session: Session, channels: List<Channel>, focusIndex: Int? = n
                 TimelineRow(
                     session = session,
                     channel = c,
-                    programmes = grid?.get(c.id.toString()),
-                    loaded = grid != null,
+                    programmes = grid[c.id.toString()],
+                    loaded = c.id.toString() in grid,
                     scroll = scroll,
                     labelWidth = labelWidth,
                     height = rowHeight,
